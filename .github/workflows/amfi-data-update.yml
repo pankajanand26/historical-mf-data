@@ -45,3 +45,5 @@ jobs:
     - name: create new release
       if: ${{ github.event_name == ('push' || 'pull_request' || 'schedule') }}
       run: gh release create v3.0.0 --generate-notes *.db
+      env: 
+        GH_TOKEN: ${{ github.token }} 
