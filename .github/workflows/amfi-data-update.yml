@@ -1,0 +1,41 @@
+  # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: amfi-data-update
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  schedule:
+    - cron: "0 1 * * *"
+
+permissions: write-all
+
+jobs:
+  get:
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13"]
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: fetch-data
+      run: python src/amfi/amfi-fetch.py
+    - name: create-db
+      run: python src/amfi/amfi_data_process.py
+    - name: create release
+      run: git add data/*
+    - name: commit changes
+      uses: stefanzweifel/git-auto-commit-action@v5
+    - name: create new release
+      if: ${{ github.event == ("push" || "pull_request" || "schedule) }}
+      run: gh release create v3.0.0 --generate-notes *.db
