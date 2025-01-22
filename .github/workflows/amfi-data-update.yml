@@ -29,9 +29,9 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: fetch-data
-      run: python ./src/amfi/amfi-fetch.py
+      run: python ../src/amfi/amfi-fetch.py
     - name: create-db
-      run: python ./src/amfi/amfi_data_process.py
+      run: python ../src/amfi/amfi_data_process.py
     - name: create release
       run: git add data/*
     - name: commit changes
