@@ -1,2 +1,4 @@
 .venv
 funds.db
+src/amfi/__pycache__/db_util.cpython-313.pyc
+funds.db-journal
