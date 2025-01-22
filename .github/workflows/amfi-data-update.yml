@@ -28,12 +28,12 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
-    - name: echo path
-      run: echo $GITHUB_WORKSPACE
-    - name: ls repo path
-      run: ls $GITHUB_WORKSPACE
-    - name: ls src path
-      run: ls $GITHUB_WORKSPACE/src/amfi
+    # - name: echo path
+    #   run: echo $GITHUB_WORKSPACE
+    # - name: ls repo path
+    #   run: ls $GITHUB_WORKSPACE
+    # - name: ls src path
+    #   run: ls $GITHUB_WORKSPACE/src/amfi
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
