@@ -32,6 +32,8 @@ jobs:
       run: echo $GITHUB_WORKSPACE
     - name: ls repo path
       run: ls $GITHUB_WORKSPACE
+    - name: ls src path
+      run: ls $GITHUB_WORKSPACE/src/amfi
     - name: fetch-data
       run: python $GITHUB_WORKSPACE/src/amfi/amfi-fetch.py
     - name: create-db
