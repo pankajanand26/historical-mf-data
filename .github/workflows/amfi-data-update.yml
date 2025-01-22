@@ -34,12 +34,14 @@ jobs:
       run: ls $GITHUB_WORKSPACE
     - name: ls src path
       run: ls $GITHUB_WORKSPACE/src/amfi
-    # - name: fetch-data
-    #   run: python $GITHUB_WORKSPACE/src/amfi/amfi_fetch.py
+    - name: fetch-data
+      run: python $GITHUB_WORKSPACE/src/amfi/amfi_fetch.py
     - name: create-db
       run: python $GITHUB_WORKSPACE/src/amfi/amfi_data_process.py
     - name: create release
       run: git add data/*
+    - name: create tar gzip
+      run: tar -czvf funds.db.tar.gz funds.db
     - name: commit changes
       uses: stefanzweifel/git-auto-commit-action@v5
     - name: create new release
