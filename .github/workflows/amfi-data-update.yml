@@ -34,8 +34,8 @@ jobs:
       run: ls $GITHUB_WORKSPACE
     - name: ls src path
       run: ls $GITHUB_WORKSPACE/src/amfi
-    - name: fetch-data
-      run: python $GITHUB_WORKSPACE/src/amfi/amfi-fetch.py
+    # - name: fetch-data
+    #   run: python $GITHUB_WORKSPACE/src/amfi/amfi-fetch.py
     - name: create-db
       run: python $GITHUB_WORKSPACE/src/amfi/amfi_data_process.py
     - name: create release
