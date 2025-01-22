@@ -40,8 +40,8 @@ jobs:
       run: python $GITHUB_WORKSPACE/src/amfi/amfi_data_process.py
     - name: create release
       run: git add data/*
-    # - name: commit changes
-    #   uses: stefanzweifel/git-auto-commit-action@v5
+    - name: commit changes
+      uses: stefanzweifel/git-auto-commit-action@v5
     - name: create new release
       if: ${{ github.event_name == ('push' || 'pull_request' || 'schedule') }}
       run: gh release create v3.0.0 --generate-notes *.db
