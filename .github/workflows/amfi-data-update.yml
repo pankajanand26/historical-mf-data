@@ -37,5 +37,5 @@ jobs:
     - name: commit changes
       uses: stefanzweifel/git-auto-commit-action@v5
     - name: create new release
-      if: ${{ github.event == ("push" || "pull_request" || "schedule) }}
+      if: ${{ github.event_name == ('push' || 'pull_request' || 'schedule') }}
       run: gh release create v3.0.0 --generate-notes *.db
