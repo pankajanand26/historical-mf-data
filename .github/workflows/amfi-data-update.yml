@@ -23,6 +23,9 @@ jobs:
         python-version: ["3.13"]
 
     steps:
+    - name: Get current date
+      id: date
+      run: echo "::set-output name=date::$(date +'%Y%m%d')"
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
@@ -42,14 +45,19 @@ jobs:
       run: python $GITHUB_WORKSPACE/src/amfi/amfi_fetch.py
     - name: create-db
       run: python $GITHUB_WORKSPACE/src/amfi/amfi_data_process.py
-    - name: create release
+    - name: stage changes
       run: git add data/*
-    - name: create tar gzip
-      run: tar -czvf funds.db.tar.gz funds.db
     - name: commit changes
       uses: stefanzweifel/git-auto-commit-action@v5
+      # with:
+      #   commit_message: "update amfi data"
+      #   commit_user_name: My GitHub Actions Bot # defaults to "github-actions[bot]"
+      #   commit_user_email: my-github-actions-bot@example.org # defaults to "41898282+github-actions[bot]@users.noreply.github.com"
+      #   commit_author: Author <actions@github.com> # defaults to "username <username@users.noreply.github.com>", where "username" belongs to the author of the commit that triggered the run    - name: create tar gzip
+    - name: create tar gzip
+      run: tar -czvf funds.db.tar.gz funds.db
     - name: create new release
       if: ${{ github.event_name == ('push' || 'pull_request' || 'schedule') }}
-      run: gh release create v3.0.0 --generate-notes *.db.tar.gz
+      run: gh release create v${{ steps.date.outputs.date }} --generate-notes *.db.tar.gz
       env: 
         GH_TOKEN: ${{ github.token }} 
