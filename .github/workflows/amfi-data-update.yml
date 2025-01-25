@@ -50,6 +50,8 @@ jobs:
       #   commit_author: Author <actions@github.com> # defaults to "username <username@users.noreply.github.com>", where "username" belongs to the author of the commit that triggered the run    - name: create tar gzip
     - name: create tar gzip
       run: tar -czvf funds.db.tar.gz funds.db
+    - name: echo event_name
+      run: echo ${{ github.event_name }}
     - name: create new release
       if: ${{ github.event_name == 'push'|| github.event_name  == 'schedule' }}
       run: gh release create v0.${{ steps.date.outputs.date }} --generate-notes *.db.tar.gz
