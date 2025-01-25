@@ -51,7 +51,7 @@ jobs:
     - name: create tar gzip
       run: tar -czvf funds.db.tar.gz funds.db
     - name: create new release
-      if: ${{ github.event_name == ('push' || 'pull_request' || 'schedule') }}
+      if: ${{ github.event_name == 'push'|| github.event_name  == 'schedule' }}
       run: gh release create v0.${{ steps.date.outputs.date }} --generate-notes *.db.tar.gz
       env: 
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        GH_TOKEN: ${{ github.token }} 
