@@ -54,4 +54,4 @@ jobs:
       if: ${{ github.event_name == ('push' || 'pull_request' || 'schedule') }}
       run: gh release create v0.${{ steps.date.outputs.date }} --generate-notes *.db.tar.gz
       env: 
-        GH_TOKEN: ${{ github.token }} 
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

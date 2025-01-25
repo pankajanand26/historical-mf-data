@@ -28,9 +28,9 @@ def create_indexes(conn: sqlite3.Connection):
     cur = conn.cursor()
     cur.execute("CREATE INDEX IF NOT EXISTS scheme_code_index ON scheme_data(scheme_code)")
     cur.execute("CREATE INDEX IF NOT EXISTS date_index ON nav_data(scheme_code, date)")
-    cur.execute("CREATE INDEX IF NOT EXISTS isin_index ON isin_data(isin_payout)")
-    cur.execute("CREATE INDEX IF NOT EXISTS isin_index ON isin_data(isin_payout)")
-    cur.execute("CREATE INDEX IF NOT EXISTS isin_index ON isin_data(scheme_code)")
+    cur.execute("CREATE INDEX IF NOT EXISTS isin_index1 ON isin_data(isin_payout)")
+    cur.execute("CREATE INDEX IF NOT EXISTS isin_index2 ON isin_data(isin_payout)")
+    cur.execute("CREATE INDEX IF NOT EXISTS isin_index3 ON isin_data(scheme_code)")
     cur.close()
 
 def create_connection(db_file):
