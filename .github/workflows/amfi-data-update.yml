@@ -25,7 +25,7 @@ jobs:
     steps:
     - name: Get current date
       id: date
-      run: echo "date={value}date::$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+      run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
       # run: echo "::set-output name=date::$(date +'%Y%m%d')"
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
