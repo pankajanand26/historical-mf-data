@@ -20,7 +20,7 @@ def parse_data( conn: sqlite3.Connection):
                     for line in lines:
                         if line.startswith("Scheme Code"):
                             continue
-                        data = line.split(";")
+                        data = line.strip().split(";")
                         if len(data) < 8:
                             continue
                         scheme_code = data[0]
@@ -29,6 +29,15 @@ def parse_data( conn: sqlite3.Connection):
                         isin_reinvestment = data[3]
                         net_asset_value = data[4]
                         date = data[7]
+
+                        if len(date) > 11:
+                            print(f"Warning: Date string '{date}' has extra characters. Skipping this line.")
+                            continue
+
+                        # Change date format from "dd-mmm-yyyy" to "yyyy-mm-dd"
+                        date = datetime.datetime.strptime(date, "%d-%b-%Y")
+                        date = date.strftime("%Y-%m-%d")
+                        # print(date)
 
                         # print(scheme_code, scheme_name, isin_payout, isin_reinvestment, net_asset_value, date)
                         insert_scheme(conn, scheme_code, scheme_name)
@@ -41,8 +50,8 @@ def parse_data( conn: sqlite3.Connection):
         # if root.split("\\").__len__() == 3:
             # break
                     
-    
-if __name__=="__main__":
+
+if __name__=="__main__": 
     conn = create_connection("funds.db")
     create_schema(conn)
     parse_data(conn)
