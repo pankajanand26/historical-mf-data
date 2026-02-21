@@ -72,3 +72,4 @@ class RollingReturnResponse(BaseModel):
     benchmark_name: str
     funds: list[FundResult]
     benchmark_windows: list[BenchmarkWindowResult]
+    risk_free_rate: float   # annual risk-free rate used for Sharpe / Sortino (e.g. 0.065)

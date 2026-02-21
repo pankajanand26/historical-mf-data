@@ -17,6 +17,7 @@ from app.services.rolling_returns import (
     WINDOW_MAP,
 )
 from app.services.benchmarking import get_scheme_name
+from app.config import RISK_FREE_RATE
 
 router = APIRouter(prefix="/api/performance", tags=["Performance"])
 
@@ -137,4 +138,5 @@ def get_rolling_returns(request: RollingReturnRequest):
         benchmark_name=benchmark_name,
         funds=fund_results,
         benchmark_windows=benchmark_windows,
+        risk_free_rate=RISK_FREE_RATE,
     )
