@@ -12,12 +12,20 @@ def get_scheme_name(scheme_code: int) -> str | None:
 
 
 def search_schemes(query: str, limit: int = 20) -> list[dict]:
-    """Search funds by name. Returns unique scheme_code rows (no ISIN join)."""
+    """
+    Search funds by name fragment.
+    Restricted to Direct Growth plans only — consistent with benchmark selection
+    and appropriate for rolling-return analysis (IDCW/Regular plans distort NAV
+    due to dividend distributions and distributor commissions).
+    Returns unique scheme_code rows (no ISIN join).
+    """
     rows = execute_query(
         """
         SELECT scheme_code, scheme_name
         FROM scheme_data
         WHERE scheme_name LIKE ?
+          AND scheme_name LIKE '%Direct%'
+          AND scheme_name LIKE '%Growth%'
         ORDER BY scheme_name
         LIMIT ?
         """,
