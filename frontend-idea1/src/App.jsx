@@ -1,0 +1,184 @@
+import { useState, useCallback } from 'react';
+import Layout from './components/layout/Layout';
+import FundSearchBar from './components/search/FundSearchBar';
+import BenchmarkPicker from './components/benchmark/BenchmarkPicker';
+import WindowSelector from './components/controls/WindowSelector';
+import DateRangePicker from './components/controls/DateRangePicker';
+import RollingReturnChart from './components/charts/RollingReturnChart';
+import { useRollingReturns } from './hooks/useRollingReturns';
+
+const getDateRange = (preset, startDate, endDate) => {
+  if (preset === 'custom') return { startDate, endDate };
+  if (preset === 'all') return { startDate: null, endDate: null };
+  const years = parseInt(preset);
+  if (!isNaN(years)) {
+    const end = new Date();
+    const start = new Date(end);
+    start.setFullYear(start.getFullYear() - years);
+    return {
+      startDate: start.toISOString().split('T')[0],
+      endDate: end.toISOString().split('T')[0],
+    };
+  }
+  return { startDate: null, endDate: null };
+};
+
+const App = () => {
+  const [selectedFund, setSelectedFund] = useState(null);
+  const [selectedBenchmark, setSelectedBenchmark] = useState(null);
+  const [windows, setWindows] = useState(['3y']);
+  const [datePreset, setDatePreset] = useState('all');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+
+  const { data, loading, error, fetch: fetchReturns, reset } = useRollingReturns();
+
+  const canAnalyze = selectedFund && selectedBenchmark && windows.length > 0 && !loading;
+
+  const handleAnalyze = useCallback(() => {
+    if (!canAnalyze) return;
+    const { startDate: sd, endDate: ed } = getDateRange(datePreset, startDate, endDate);
+    fetchReturns({
+      schemeCode: selectedFund.scheme_code,
+      benchmarkCode: selectedBenchmark.scheme_code,
+      windows,
+      startDate: sd,
+      endDate: ed,
+    });
+  }, [canAnalyze, selectedFund, selectedBenchmark, windows, datePreset, startDate, endDate, fetchReturns]);
+
+  const handleFundSelect = (fund) => {
+    setSelectedFund(fund);
+    reset();
+  };
+
+  const handleBenchmarkSelect = (b) => {
+    setSelectedBenchmark(b);
+    reset();
+  };
+
+  return (
+    <Layout>
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Performance Attribution & Benchmarking</h1>
+            <p className="text-sm text-gray-500">Rolling return analysis · Indian mutual funds · AMFI data</p>
+          </div>
+          <span className="hidden sm:inline text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Idea 1</span>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+          {/* ---- Left panel: controls ---- */}
+          <aside className="lg:col-span-1 space-y-5">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-5">
+              <FundSearchBar
+                selectedFund={selectedFund}
+                onSelect={handleFundSelect}
+                placeholder="e.g. HDFC Flexi Cap..."
+              />
+
+              <BenchmarkPicker
+                selectedBenchmark={selectedBenchmark}
+                onSelect={handleBenchmarkSelect}
+              />
+
+              <WindowSelector selected={windows} onChange={setWindows} />
+
+              <DateRangePicker
+                preset={datePreset}
+                onPresetChange={setDatePreset}
+                startDate={startDate}
+                endDate={endDate}
+                onStartDateChange={setStartDate}
+                onEndDateChange={setEndDate}
+              />
+
+              <button
+                onClick={handleAnalyze}
+                disabled={!canAnalyze}
+                className={`w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors ${
+                  canAnalyze
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Calculating...
+                  </span>
+                ) : (
+                  'Analyze'
+                )}
+              </button>
+
+              {!selectedFund && (
+                <p className="text-xs text-gray-400 text-center">Search and select a fund to begin</p>
+              )}
+              {selectedFund && !selectedBenchmark && (
+                <p className="text-xs text-gray-400 text-center">Now pick a benchmark index fund</p>
+              )}
+            </div>
+          </aside>
+
+          {/* ---- Right panel: chart ---- */}
+          <section className="lg:col-span-3 space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+                <span className="font-medium">Error: </span>{error}
+              </div>
+            )}
+
+            {!data && !loading && !error && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center h-80 text-center px-6">
+                <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                  <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                <p className="text-gray-500 text-sm">
+                  Select a fund, choose a benchmark, pick your rolling windows and click <strong>Analyze</strong>.
+                </p>
+              </div>
+            )}
+
+            {loading && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center h-80">
+                <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-gray-500 text-sm">Computing rolling returns...</p>
+                <p className="text-gray-400 text-xs mt-1">This may take a few seconds for long date ranges</p>
+              </div>
+            )}
+
+            {data && !loading && (
+              <>
+                {/* Fund / benchmark info bar */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 flex flex-wrap gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-400 text-xs uppercase tracking-wide">Fund</span>
+                    <p className="font-medium text-blue-700 truncate max-w-xs">{data.scheme_name}</p>
+                  </div>
+                  <div className="w-px bg-gray-200 hidden sm:block" />
+                  <div>
+                    <span className="text-gray-400 text-xs uppercase tracking-wide">Benchmark</span>
+                    <p className="font-medium text-green-700 truncate max-w-xs">{data.benchmark_name}</p>
+                  </div>
+                </div>
+
+                <RollingReturnChart data={data} />
+              </>
+            )}
+          </section>
+        </div>
+      </main>
+    </Layout>
+  );
+};
+
+export default App;
