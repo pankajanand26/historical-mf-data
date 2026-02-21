@@ -24,7 +24,7 @@ const getDateRange = (preset, startDate, endDate) => {
 };
 
 const App = () => {
-  const [selectedFund, setSelectedFund] = useState(null);
+  const [selectedFunds, setSelectedFunds] = useState([]);   // [{ scheme_code, scheme_name }]
   const [selectedBenchmark, setSelectedBenchmark] = useState(null);
   const [windows, setWindows] = useState(['3y']);
   const [datePreset, setDatePreset] = useState('all');
@@ -33,24 +33,33 @@ const App = () => {
 
   const { data, loading, error, fetch: fetchReturns, reset } = useRollingReturns();
 
-  const canAnalyze = selectedFund && selectedBenchmark && windows.length > 0 && !loading;
+  const canAnalyze = selectedFunds.length > 0 && selectedBenchmark && windows.length > 0 && !loading;
 
   const handleAnalyze = useCallback(() => {
     if (!canAnalyze) return;
     const { startDate: sd, endDate: ed } = getDateRange(datePreset, startDate, endDate);
     fetchReturns({
-      schemeCode: selectedFund.scheme_code,
+      schemeCodes: selectedFunds.map((f) => f.scheme_code),
       benchmarkCode: selectedBenchmark.scheme_code,
       windows,
       startDate: sd,
       endDate: ed,
     });
-  }, [canAnalyze, selectedFund, selectedBenchmark, windows, datePreset, startDate, endDate, fetchReturns]);
+  }, [canAnalyze, selectedFunds, selectedBenchmark, windows, datePreset, startDate, endDate, fetchReturns]);
 
-  const handleFundSelect = (fund) => {
-    setSelectedFund(fund);
+  const handleFundAdd = useCallback((fund) => {
+    setSelectedFunds((prev) => {
+      if (prev.some((f) => f.scheme_code === fund.scheme_code)) return prev;
+      if (prev.length >= 5) return prev;
+      return [...prev, fund];
+    });
     reset();
-  };
+  }, [reset]);
+
+  const handleFundRemove = useCallback((schemeCode) => {
+    setSelectedFunds((prev) => prev.filter((f) => f.scheme_code !== schemeCode));
+    reset();
+  }, [reset]);
 
   const handleBenchmarkSelect = (b) => {
     setSelectedBenchmark(b);
@@ -77,8 +86,9 @@ const App = () => {
           <aside className="lg:col-span-1 space-y-5">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-5">
               <FundSearchBar
-                selectedFund={selectedFund}
-                onSelect={handleFundSelect}
+                selectedFunds={selectedFunds}
+                onAdd={handleFundAdd}
+                onRemove={handleFundRemove}
                 placeholder="e.g. HDFC Flexi Cap..."
               />
 
@@ -117,10 +127,10 @@ const App = () => {
                 )}
               </button>
 
-              {!selectedFund && (
-                <p className="text-xs text-gray-400 text-center">Search and select a fund to begin</p>
+              {selectedFunds.length === 0 && (
+                <p className="text-xs text-gray-400 text-center">Search and select funds to begin</p>
               )}
-              {selectedFund && !selectedBenchmark && (
+              {selectedFunds.length > 0 && !selectedBenchmark && (
                 <p className="text-xs text-gray-400 text-center">Now pick a benchmark index fund</p>
               )}
             </div>
@@ -143,7 +153,7 @@ const App = () => {
                   </svg>
                 </div>
                 <p className="text-gray-500 text-sm">
-                  Select a fund, choose a benchmark, pick your rolling windows and click <strong>Analyze</strong>.
+                  Select funds, choose a benchmark, pick your rolling windows and click <strong>Analyze</strong>.
                 </p>
               </div>
             )}
@@ -157,22 +167,7 @@ const App = () => {
             )}
 
             {data && !loading && (
-              <>
-                {/* Fund / benchmark info bar */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 flex flex-wrap gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-400 text-xs uppercase tracking-wide">Fund</span>
-                    <p className="font-medium text-blue-700 truncate max-w-xs">{data.scheme_name}</p>
-                  </div>
-                  <div className="w-px bg-gray-200 hidden sm:block" />
-                  <div>
-                    <span className="text-gray-400 text-xs uppercase tracking-wide">Benchmark</span>
-                    <p className="font-medium text-green-700 truncate max-w-xs">{data.benchmark_name}</p>
-                  </div>
-                </div>
-
-                <RollingReturnChart data={data} />
-              </>
+              <RollingReturnChart data={data} />
             )}
           </section>
         </div>

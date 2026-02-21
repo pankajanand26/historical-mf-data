@@ -68,84 +68,84 @@ def compute_rolling_returns(
     return rolling
 
 
-def align_series(
-    scheme_nav: pd.Series,
-    benchmark_nav: pd.Series,
-    window_days: int,
-) -> tuple[pd.Series, pd.Series]:
-    """
-    Compute rolling returns for both series and align them on common dates.
-    Only returns dates where both series have data.
-    """
-    scheme_rolling = compute_rolling_returns(scheme_nav, window_days)
-    benchmark_rolling = compute_rolling_returns(benchmark_nav, window_days)
-
-    scheme_aligned, benchmark_aligned = scheme_rolling.align(
-        benchmark_rolling, join="inner"
-    )
-    return scheme_aligned, benchmark_aligned
-
-
-def build_window_data(
-    scheme_nav: pd.Series,
-    benchmark_nav: pd.Series,
+def compute_fund_rolling(
+    nav: pd.Series,
     window: str,
-    scheme_name: str,
-    benchmark_name: str,
-    max_points: int = 500,
     clip_start: Optional[date] = None,
-) -> dict:
+    max_points: int = 500,
+) -> tuple[list[dict], int]:
     """
-    Build the full result dict for a single rolling window.
-    Downsamples to `max_points` evenly-spaced observations if needed.
+    Compute rolling returns for a single fund for one window.
+    Returns (list of {date, value} dicts, window_days).
 
-    clip_start: if set, only return rolling-return data points on or after
-    this date.  Use this when NAV was fetched with an earlier start to
-    provide the rolling window's look-back buffer.
+    clip_start: if set, strip data points before this date (look-back buffer).
+    max_points: downsample to this many evenly-spaced points if needed.
     """
-    window_days = WINDOW_MAP.get(window)
-    if window_days is None:
-        raise ValueError(f"Unsupported window: {window}. Must be one of {list(WINDOW_MAP.keys())}")
+    window_days = WINDOW_MAP[window]
+    rolling = compute_rolling_returns(nav, window_days)
 
-    scheme_r, benchmark_r = align_series(scheme_nav, benchmark_nav, window_days)
+    if clip_start is not None and not rolling.empty:
+        rolling = rolling[rolling.index >= pd.Timestamp(clip_start)]
 
-    # Clip to user's requested start date (strip the look-back buffer)
-    if clip_start is not None and not scheme_r.empty:
-        clip_ts = pd.Timestamp(clip_start)
-        scheme_r = scheme_r[scheme_r.index >= clip_ts]
-        benchmark_r = benchmark_r[benchmark_r.index >= clip_ts]
+    if rolling.empty:
+        return [], window_days
 
-    if scheme_r.empty:
-        return {
+    if len(rolling) > max_points:
+        indices = np.linspace(0, len(rolling) - 1, max_points, dtype=int)
+        rolling = rolling.iloc[indices]
+
+    points = [
+        {
+            "date": dt.strftime("%Y-%m-%d"),
+            "value": round(float(v) * 100, 4) if not np.isnan(v) else None,
+        }
+        for dt, v in rolling.items()
+    ]
+    return points, window_days
+
+
+def compute_benchmark_rolling(
+    benchmark_nav: pd.Series,
+    windows: list[str],
+    clip_start: Optional[date] = None,
+    max_points: int = 500,
+) -> list[dict]:
+    """
+    Compute rolling returns for the benchmark for all requested windows.
+    Returns a list of BenchmarkWindowResult-shaped dicts.
+    """
+    results = []
+    for window in windows:
+        window_days = WINDOW_MAP[window]
+        rolling = compute_rolling_returns(benchmark_nav, window_days)
+
+        if clip_start is not None and not rolling.empty:
+            rolling = rolling[rolling.index >= pd.Timestamp(clip_start)]
+
+        if rolling.empty:
+            results.append({
+                "window": window,
+                "window_days": window_days,
+                "data": [],
+                "data_points": 0,
+            })
+            continue
+
+        if len(rolling) > max_points:
+            indices = np.linspace(0, len(rolling) - 1, max_points, dtype=int)
+            rolling = rolling.iloc[indices]
+
+        points = [
+            {
+                "date": dt.strftime("%Y-%m-%d"),
+                "value": round(float(v) * 100, 4) if not np.isnan(v) else None,
+            }
+            for dt, v in rolling.items()
+        ]
+        results.append({
             "window": window,
             "window_days": window_days,
-            "data": [],
-            "scheme_name": scheme_name,
-            "benchmark_name": benchmark_name,
-            "data_points": 0,
-        }
-
-    # Downsample if too many points for the frontend
-    if len(scheme_r) > max_points:
-        indices = np.linspace(0, len(scheme_r) - 1, max_points, dtype=int)
-        scheme_r = scheme_r.iloc[indices]
-        benchmark_r = benchmark_r.iloc[indices]
-
-    data_points = []
-    for dt in scheme_r.index:
-        s_val = scheme_r.get(dt)
-        b_val = benchmark_r.get(dt)
-        data_points.append({
-            "date": dt.strftime("%Y-%m-%d"),
-            "scheme_return": round(float(s_val) * 100, 4) if s_val is not None and not np.isnan(s_val) else None,
-            "benchmark_return": round(float(b_val) * 100, 4) if b_val is not None and not np.isnan(b_val) else None,
+            "data": points,
+            "data_points": len(points),
         })
-
-    return {
-        "window": window,
-        "window_days": window_days,
-        "data": data_points,
-        "scheme_name": scheme_name,
-        "benchmark_name": benchmark_name,
-        "data_points": len(data_points),
-    }
+    return results

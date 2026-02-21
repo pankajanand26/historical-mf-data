@@ -8,20 +8,20 @@ export function useRollingReturns() {
 
   /**
    * @param {{
-   *   schemeCode: number,
+   *   schemeCodes: number[],
    *   benchmarkCode: number,
    *   windows: string[],
    *   startDate?: string,
    *   endDate?: string
    * }} params
    */
-  const fetch = useCallback(async ({ schemeCode, benchmarkCode, windows, startDate, endDate }) => {
+  const fetch = useCallback(async ({ schemeCodes, benchmarkCode, windows, startDate, endDate }) => {
     setLoading(true);
     setError(null);
     setData(null);
     try {
       const payload = {
-        scheme_code: schemeCode,
+        scheme_codes: schemeCodes,
         benchmark_code: benchmarkCode,
         windows,
         ...(startDate && { start_date: startDate }),

@@ -1,7 +1,19 @@
 from fastapi import APIRouter, HTTPException
 from datetime import timedelta
-from app.models.performance import RollingReturnRequest, RollingReturnResponse, WindowResult, RollingReturnPoint
-from app.services.rolling_returns import load_nav_series, build_window_data, WINDOW_MAP
+from app.models.performance import (
+    RollingReturnRequest,
+    RollingReturnResponse,
+    RollingReturnPoint,
+    FundResult,
+    FundWindowResult,
+    BenchmarkWindowResult,
+)
+from app.services.rolling_returns import (
+    load_nav_series,
+    compute_fund_rolling,
+    compute_benchmark_rolling,
+    WINDOW_MAP,
+)
 from app.services.benchmarking import get_scheme_name
 
 router = APIRouter(prefix="/api/performance", tags=["Performance"])
@@ -19,56 +31,80 @@ def get_rolling_returns(request: RollingReturnRequest):
             detail=f"Invalid windows: {invalid}. Valid options: {list(WINDOW_MAP.keys())}",
         )
 
-    scheme_name = get_scheme_name(request.scheme_code)
-    if not scheme_name:
-        raise HTTPException(status_code=404, detail=f"Scheme {request.scheme_code} not found")
+    # Validate all scheme codes
+    scheme_names: dict[int, str] = {}
+    for sc in request.scheme_codes:
+        name = get_scheme_name(sc)
+        if not name:
+            raise HTTPException(status_code=404, detail=f"Scheme {sc} not found")
+        scheme_names[sc] = name
 
     benchmark_name = get_scheme_name(request.benchmark_code)
     if not benchmark_name:
         raise HTTPException(status_code=404, detail=f"Benchmark scheme {request.benchmark_code} not found")
 
-    # When a start_date is given, fetch extra NAV history equal to the largest
-    # requested window so pct_change has enough look-back to produce results
-    # starting from the user's chosen start_date rather than window_days later.
+    # Fetch NAV with look-back buffer for rolling window
     max_window_days = max(WINDOW_MAP[w] for w in request.windows)
     nav_start = (
         request.start_date - timedelta(days=max_window_days)
         if request.start_date else None
     )
 
-    scheme_nav = load_nav_series(request.scheme_code, nav_start, request.end_date)
+    # Load benchmark NAV once
     benchmark_nav = load_nav_series(request.benchmark_code, nav_start, request.end_date)
-
-    if scheme_nav.empty:
-        raise HTTPException(status_code=404, detail=f"No NAV data found for scheme {request.scheme_code}")
     if benchmark_nav.empty:
         raise HTTPException(status_code=404, detail=f"No NAV data found for benchmark {request.benchmark_code}")
 
-    window_results = []
-    for window in request.windows:
-        window_data = build_window_data(
-            scheme_nav=scheme_nav,
-            benchmark_nav=benchmark_nav,
-            window=window,
-            scheme_name=scheme_name,
-            benchmark_name=benchmark_name,
-            clip_start=request.start_date,  # trim the look-back buffer from output
+    # Compute benchmark rolling returns for all windows
+    benchmark_window_dicts = compute_benchmark_rolling(
+        benchmark_nav=benchmark_nav,
+        windows=request.windows,
+        clip_start=request.start_date,
+    )
+    benchmark_windows = [
+        BenchmarkWindowResult(
+            window=bw["window"],
+            window_days=bw["window_days"],
+            data=[RollingReturnPoint(**p) for p in bw["data"]],
+            data_points=bw["data_points"],
         )
-        window_results.append(
-            WindowResult(
-                window=window_data["window"],
-                window_days=window_data["window_days"],
-                data=[RollingReturnPoint(**p) for p in window_data["data"]],
-                scheme_name=window_data["scheme_name"],
-                benchmark_name=window_data["benchmark_name"],
-                data_points=window_data["data_points"],
+        for bw in benchmark_window_dicts
+    ]
+
+    # Compute rolling returns for each fund
+    fund_results: list[FundResult] = []
+    for sc in request.scheme_codes:
+        fund_nav = load_nav_series(sc, nav_start, request.end_date)
+        if fund_nav.empty:
+            raise HTTPException(status_code=404, detail=f"No NAV data found for scheme {sc}")
+
+        window_results: list[FundWindowResult] = []
+        for window in request.windows:
+            points, window_days = compute_fund_rolling(
+                nav=fund_nav,
+                window=window,
+                clip_start=request.start_date,
+            )
+            window_results.append(
+                FundWindowResult(
+                    window=window,
+                    window_days=window_days,
+                    data=[RollingReturnPoint(**p) for p in points],
+                    data_points=len(points),
+                )
+            )
+
+        fund_results.append(
+            FundResult(
+                scheme_code=sc,
+                scheme_name=scheme_names[sc],
+                windows=window_results,
             )
         )
 
     return RollingReturnResponse(
-        scheme_code=request.scheme_code,
-        scheme_name=scheme_name,
         benchmark_code=request.benchmark_code,
         benchmark_name=benchmark_name,
-        windows=window_results,
+        funds=fund_results,
+        benchmark_windows=benchmark_windows,
     )
