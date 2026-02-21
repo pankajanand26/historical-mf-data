@@ -10,8 +10,10 @@ from app.models.performance import (
 )
 from app.services.rolling_returns import (
     load_nav_series,
-    compute_fund_rolling,
-    compute_benchmark_rolling,
+    compute_rolling_returns,
+    series_to_points,
+    downsample_shared,
+    series_to_point_list,
     WINDOW_MAP,
 )
 from app.services.benchmarking import get_scheme_name
@@ -50,50 +52,78 @@ def get_rolling_returns(request: RollingReturnRequest):
         if request.start_date else None
     )
 
-    # Load benchmark NAV once
+    # Load all NAVs
     benchmark_nav = load_nav_series(request.benchmark_code, nav_start, request.end_date)
     if benchmark_nav.empty:
         raise HTTPException(status_code=404, detail=f"No NAV data found for benchmark {request.benchmark_code}")
 
-    # Compute benchmark rolling returns for all windows
-    benchmark_window_dicts = compute_benchmark_rolling(
-        benchmark_nav=benchmark_nav,
-        windows=request.windows,
-        clip_start=request.start_date,
-    )
-    benchmark_windows = [
-        BenchmarkWindowResult(
-            window=bw["window"],
-            window_days=bw["window_days"],
-            data=[RollingReturnPoint(**p) for p in bw["data"]],
-            data_points=bw["data_points"],
-        )
-        for bw in benchmark_window_dicts
-    ]
+    fund_navs: dict[int, object] = {}
+    for sc in request.scheme_codes:
+        nav = load_nav_series(sc, nav_start, request.end_date)
+        if nav.empty:
+            raise HTTPException(status_code=404, detail=f"No NAV data found for scheme {sc}")
+        fund_navs[sc] = nav
 
-    # Compute rolling returns for each fund
+    # Per window: compute all rolling series, downsample on shared date grid
+    benchmark_windows: list[BenchmarkWindowResult] = []
+    # fund_window_data[sc][window] = list[RollingReturnPoint]
+    fund_window_data: dict[int, dict[str, list[RollingReturnPoint]]] = {
+        sc: {} for sc in request.scheme_codes
+    }
+
+    for window in request.windows:
+        window_days = WINDOW_MAP[window]
+
+        # Compute full-resolution rolling series for every series
+        bench_rolling = series_to_points(
+            compute_rolling_returns(benchmark_nav, window_days),
+            request.start_date,
+        )
+        fund_rollings: dict[int, object] = {}
+        for sc in request.scheme_codes:
+            fund_rollings[sc] = series_to_points(
+                compute_rolling_returns(fund_navs[sc], window_days),
+                request.start_date,
+            )
+
+        # Build named dict for joint downsampling: benchmark + all funds
+        named = {"benchmark": bench_rolling}
+        for sc in request.scheme_codes:
+            named[f"fund_{sc}"] = fund_rollings[sc]
+
+        # Downsample on the shared date grid
+        downsampled = downsample_shared(named, max_points=500)
+
+        bench_ds = downsampled["benchmark"]
+        bench_pts = series_to_point_list(bench_ds)
+        benchmark_windows.append(
+            BenchmarkWindowResult(
+                window=window,
+                window_days=window_days,
+                data=[RollingReturnPoint(**p) for p in bench_pts],
+                data_points=len(bench_pts),
+            )
+        )
+
+        for sc in request.scheme_codes:
+            fund_ds = downsampled[f"fund_{sc}"]
+            fund_pts = series_to_point_list(fund_ds)
+            fund_window_data[sc][window] = [RollingReturnPoint(**p) for p in fund_pts]
+
+    # Assemble FundResult objects
     fund_results: list[FundResult] = []
     for sc in request.scheme_codes:
-        fund_nav = load_nav_series(sc, nav_start, request.end_date)
-        if fund_nav.empty:
-            raise HTTPException(status_code=404, detail=f"No NAV data found for scheme {sc}")
-
         window_results: list[FundWindowResult] = []
         for window in request.windows:
-            points, window_days = compute_fund_rolling(
-                nav=fund_nav,
-                window=window,
-                clip_start=request.start_date,
-            )
+            pts = fund_window_data[sc][window]
             window_results.append(
                 FundWindowResult(
                     window=window,
-                    window_days=window_days,
-                    data=[RollingReturnPoint(**p) for p in points],
-                    data_points=len(points),
+                    window_days=WINDOW_MAP[window],
+                    data=pts,
+                    data_points=len(pts),
                 )
             )
-
         fund_results.append(
             FundResult(
                 scheme_code=sc,

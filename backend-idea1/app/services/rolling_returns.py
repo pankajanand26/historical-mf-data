@@ -55,97 +55,69 @@ def compute_rolling_returns(
     """
     Compute point-in-time rolling returns over `window_days` calendar days.
     For each date t, return = (NAV[t] / NAV[t - window_days]) - 1.
-    Uses pandas iloc-based shifting after reindexing to a daily calendar.
+    Reindexes to a full daily calendar so pct_change(periods=N) is
+    calendar-accurate, then returns the result on NAV trading days only
+    (no ffill artefacts in the output).
     """
     if nav.empty or len(nav) < 2:
         return pd.Series(dtype=float)
 
-    # Reindex to a full daily calendar so pct_change(periods=N) is calendar-accurate
     full_range = pd.date_range(nav.index.min(), nav.index.max(), freq="D")
     nav_daily = nav.reindex(full_range).ffill()
-
     rolling = nav_daily.pct_change(periods=window_days).dropna()
+    # Keep only dates that had actual NAV observations (trading days)
+    rolling = rolling[rolling.index.isin(nav.index)]
     return rolling
 
 
-def compute_fund_rolling(
-    nav: pd.Series,
-    window: str,
+def series_to_points(
+    series: pd.Series,
     clip_start: Optional[date] = None,
+) -> pd.Series:
+    """Apply clip_start filter; return the (still full-resolution) Series."""
+    if clip_start is not None and not series.empty:
+        series = series[series.index >= pd.Timestamp(clip_start)]
+    return series
+
+
+def downsample_shared(
+    named_series: dict[str, pd.Series],
     max_points: int = 500,
-) -> tuple[list[dict], int]:
+) -> dict[str, pd.Series]:
     """
-    Compute rolling returns for a single fund for one window.
-    Returns (list of {date, value} dicts, window_days).
+    Downsample multiple aligned series together so they all share the same
+    date grid.  Steps:
+      1. Inner-join all series on their common dates.
+      2. If that common grid has more than max_points entries, pick
+         max_points evenly-spaced indices from it.
+      3. Return each series restricted to those shared dates.
 
-    clip_start: if set, strip data points before this date (look-back buffer).
-    max_points: downsample to this many evenly-spaced points if needed.
+    This prevents fragmentation: every row in the Recharts data array will
+    have a value for every series — no undefined gaps.
     """
-    window_days = WINDOW_MAP[window]
-    rolling = compute_rolling_returns(nav, window_days)
+    # Build the shared (inner) date index
+    common_index = None
+    for s in named_series.values():
+        if s.empty:
+            continue
+        common_index = s.index if common_index is None else common_index.intersection(s.index)
 
-    if clip_start is not None and not rolling.empty:
-        rolling = rolling[rolling.index >= pd.Timestamp(clip_start)]
+    if common_index is None or len(common_index) == 0:
+        return {k: pd.Series(dtype=float) for k in named_series}
 
-    if rolling.empty:
-        return [], window_days
+    if len(common_index) > max_points:
+        indices = np.linspace(0, len(common_index) - 1, max_points, dtype=int)
+        common_index = common_index[indices]
 
-    if len(rolling) > max_points:
-        indices = np.linspace(0, len(rolling) - 1, max_points, dtype=int)
-        rolling = rolling.iloc[indices]
+    return {k: s.reindex(common_index) for k, s in named_series.items()}
 
-    points = [
+
+def series_to_point_list(series: pd.Series) -> list[dict]:
+    """Convert a pd.Series to [{date, value}, ...] dicts."""
+    return [
         {
             "date": dt.strftime("%Y-%m-%d"),
             "value": round(float(v) * 100, 4) if not np.isnan(v) else None,
         }
-        for dt, v in rolling.items()
+        for dt, v in series.items()
     ]
-    return points, window_days
-
-
-def compute_benchmark_rolling(
-    benchmark_nav: pd.Series,
-    windows: list[str],
-    clip_start: Optional[date] = None,
-    max_points: int = 500,
-) -> list[dict]:
-    """
-    Compute rolling returns for the benchmark for all requested windows.
-    Returns a list of BenchmarkWindowResult-shaped dicts.
-    """
-    results = []
-    for window in windows:
-        window_days = WINDOW_MAP[window]
-        rolling = compute_rolling_returns(benchmark_nav, window_days)
-
-        if clip_start is not None and not rolling.empty:
-            rolling = rolling[rolling.index >= pd.Timestamp(clip_start)]
-
-        if rolling.empty:
-            results.append({
-                "window": window,
-                "window_days": window_days,
-                "data": [],
-                "data_points": 0,
-            })
-            continue
-
-        if len(rolling) > max_points:
-            indices = np.linspace(0, len(rolling) - 1, max_points, dtype=int)
-            rolling = rolling.iloc[indices]
-
-        points = [
-            {
-                "date": dt.strftime("%Y-%m-%d"),
-                "value": round(float(v) * 100, 4) if not np.isnan(v) else None,
-            }
-            for dt, v in rolling.items()
-        ]
-        results.append({
-            "window": window,
-            "window_days": window_days,
-            "data": points,
-            "data_points": len(points),
-        })
-    return results
