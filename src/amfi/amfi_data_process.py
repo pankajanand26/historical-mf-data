@@ -45,7 +45,7 @@ def parse_data( conn: sqlite3.Connection):
                         insert_isin(conn, scheme_code, isin_payout, isin_reinvestment)
                         # insert_data(scheme_code, scheme_name, isin_payout, isin_reinvestment, net_asset_value, date)
                     print(".", end = " ")
-                conn.commit()    
+        conn.commit()    
         print("\n"+datetime.datetime.now().__str__()+" Parsing data complete for" + " " + root)
         # if root.split("\\").__len__() == 3:
             # break
