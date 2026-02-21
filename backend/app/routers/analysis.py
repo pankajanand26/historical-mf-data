@@ -96,6 +96,7 @@ def aggregate_amc_returns(
         return pd.Series(dtype=float), 0
     
     df["date"] = pd.to_datetime(df["date"])
+    df["nav"] = pd.to_numeric(df["nav"], errors="coerce")
     
     scheme_count = df["scheme_code"].nunique()
     
