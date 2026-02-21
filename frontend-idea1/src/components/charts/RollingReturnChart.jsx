@@ -9,9 +9,12 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceLine,
+  ReferenceArea,
   ScatterChart,
   Scatter,
   ZAxis,
+  AreaChart,
+  Area,
 } from 'recharts';
 
 // Up to 5 distinct fund colors (benchmark is always dashed gray-green)
@@ -207,6 +210,80 @@ function computeVolatilityStats(chartData, fund, rfPct) {
   };
 }
 
+// ─── Capture ratio stats ──────────────────────────────────────────────────────
+
+/**
+ * Compute UCR, DCR, Capture Ratio, Upside/Downside Consistency from aligned
+ * rolling-return observations.
+ */
+function computeCaptureStats(chartData, fund) {
+  const key = `fund_${fund.scheme_code}`;
+  const upFund = [], upBench = [], downFund = [], downBench = [];
+  let upConsistCount = 0, downConsistCount = 0;
+
+  for (const row of chartData) {
+    const fv = row[key], bv = row.benchmark;
+    if (fv == null || bv == null) continue;
+    if (bv > 0) {
+      upFund.push(fv);
+      upBench.push(bv);
+      if (fv > bv) upConsistCount++;
+    } else if (bv < 0) {
+      downFund.push(fv);
+      downBench.push(bv);
+      if (fv > bv) downConsistCount++;  // fund fell less than benchmark
+    }
+  }
+
+  const meanUp = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : NaN;
+
+  const mUpFund = meanUp(upFund);
+  const mUpBench = meanUp(upBench);
+  const mDownFund = meanUp(downFund);
+  const mDownBench = meanUp(downBench);
+
+  const ucr = (!isNaN(mUpFund) && !isNaN(mUpBench) && mUpBench !== 0)
+    ? (mUpFund / mUpBench) * 100 : NaN;
+  const dcr = (!isNaN(mDownFund) && !isNaN(mDownBench) && mDownBench !== 0)
+    ? (mDownFund / mDownBench) * 100 : NaN;
+  const captureRatio = (!isNaN(ucr) && !isNaN(dcr) && dcr !== 0)
+    ? ucr / dcr : NaN;
+
+  const upConsistPct = upFund.length > 0 ? (upConsistCount / upFund.length) * 100 : NaN;
+  const downConsistPct = downFund.length > 0 ? (downConsistCount / downFund.length) * 100 : NaN;
+
+  return { ucr, dcr, captureRatio, upConsistPct, downConsistPct, upPeriods: upFund.length, downPeriods: downFund.length };
+}
+
+/**
+ * Build scatter data for a single fund: [{x: benchReturn, y: fundReturn}]
+ * x = benchmark rolling return, y = fund rolling return.
+ */
+function buildScatterData(chartData, fund) {
+  const key = `fund_${fund.scheme_code}`;
+  const pts = [];
+  for (const row of chartData) {
+    const fv = row[key], bv = row.benchmark;
+    if (fv == null || bv == null) continue;
+    pts.push({ x: parseFloat(bv.toFixed(3)), y: parseFloat(fv.toFixed(3)) });
+  }
+  return pts;
+}
+
+/**
+ * Build alpha time-series for a single fund: [{date, alpha}]
+ */
+function buildAlphaData(chartData, fund) {
+  const key = `fund_${fund.scheme_code}`;
+  const pts = [];
+  for (const row of chartData) {
+    const fv = row[key], bv = row.benchmark;
+    if (fv == null || bv == null) continue;
+    pts.push({ date: row.date, alpha: parseFloat((fv - bv).toFixed(3)) });
+  }
+  return pts;
+}
+
 // ─── Tooltip components ───────────────────────────────────────────────────────
 
 const LineTooltip = ({ active, payload, label }) => {
@@ -241,6 +318,35 @@ const ScatterTooltip = ({ active, payload }) => {
   );
 };
 
+const CaptureScatterTooltip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  const d = payload[0]?.payload;
+  if (!d) return null;
+  const alpha = d.y - d.x;
+  const quadrant = d.x > 0
+    ? (d.y > d.x ? 'Up market — outperformed' : 'Up market — underperformed')
+    : (d.y > d.x ? 'Down market — protected' : 'Down market — amplified');
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm max-w-xs">
+      <p className="text-gray-500">Benchmark: <span className="font-medium text-gray-800">{fmt2(d.x)}</span></p>
+      <p className="text-gray-500">Fund: <span className="font-medium text-gray-800">{fmt2(d.y)}</span></p>
+      <p className="text-gray-500">Alpha: <span className={`font-medium ${alpha >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{alpha >= 0 ? '+' : ''}{fmt2(alpha)}</span></p>
+      <p className="text-xs text-gray-400 mt-1">{quadrant}</p>
+    </div>
+  );
+};
+
+const AlphaTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  const alpha = payload[0]?.value;
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm">
+      <p className="text-gray-500 mb-1">{label}</p>
+      <p className="text-gray-500">Alpha: <span className={`font-semibold ${alpha >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{alpha >= 0 ? '+' : ''}{fmt2(alpha)}</span></p>
+    </div>
+  );
+};
+
 // ─── Sub-components for each section ─────────────────────────────────────────
 
 const SectionHeader = ({ title, subtitle }) => (
@@ -268,7 +374,7 @@ const NeutralValue = ({ value, isRatio = false }) => {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-const RollingReturnChart = ({ data }) => {
+const RollingReturnChart = ({ data, analyticsData, analyticsLoading }) => {
   const windows = data?.benchmark_windows ?? [];
   const funds = data?.funds ?? [];
   const riskFreeAnnual = data?.risk_free_rate ?? 0.065;
@@ -312,6 +418,31 @@ const RollingReturnChart = ({ data }) => {
     outperf: computeOutperformanceStats(chartData, fund),
     vol: computeVolatilityStats(chartData, fund, rfPct),
   }));
+
+  // Capture stats and per-fund chart data
+  const captureStats = funds.map((fund, idx) => ({
+    fund,
+    color: FUND_COLORS[idx % FUND_COLORS.length],
+    capture: computeCaptureStats(chartData, fund),
+    scatterData: buildScatterData(chartData, fund),
+    alphaData: buildAlphaData(chartData, fund),
+  }));
+
+  // Compute shared scatter domain across all funds for visual consistency
+  const allScatterPts = captureStats.flatMap((s) => s.scatterData);
+  const allX = allScatterPts.map((p) => p.x);
+  const allY = allScatterPts.map((p) => p.y);
+  const scatterXMin = allX.length ? Math.min(...allX) : -20;
+  const scatterXMax = allX.length ? Math.max(...allX) : 20;
+  const scatterYMin = allY.length ? Math.min(...allY) : -20;
+  const scatterYMax = allY.length ? Math.max(...allY) : 20;
+  // Add a bit of padding
+  const xPad = (scatterXMax - scatterXMin) * 0.08 || 2;
+  const yPad = (scatterYMax - scatterYMin) * 0.08 || 2;
+  const scatterDomain = {
+    x: [scatterXMin - xPad, scatterXMax + xPad],
+    y: [scatterYMin - yPad, scatterYMax + yPad],
+  };
 
   // Scatter data: each fund + benchmark as a point { x: stdDev, y: meanReturn }
   const scatterFundPoints = allStats
@@ -811,6 +942,360 @@ const RollingReturnChart = ({ data }) => {
             All metrics derived from {allStats[0]?.outperf.total ?? 0} co-aligned downsampled rolling-return
             observations. Overlapping windows introduce serial correlation — use for relative comparison only,
             not as standalone absolute risk estimates.
+          </p>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          CARD 3 — Market Capture Analysis
+      ══════════════════════════════════════════════════════════════════════ */}
+      {hasData && captureStats.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-8">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Market Capture Analysis</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              How does each fund capture gains and protect against losses relative to the benchmark?
+            </p>
+          </div>
+
+          {/* ── Section 6a: Capture table ─────────────────────────────────── */}
+          <div>
+            <SectionHeader
+              title="Upside / Downside Capture"
+              subtitle={`Based on ${currentWindow.toUpperCase()} rolling ${returnLabel.toLowerCase()} return observations · ${captureStats[0]?.capture.upPeriods ?? 0} up-market periods · ${captureStats[0]?.capture.downPeriods ?? 0} down-market periods`}
+            />
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left font-medium text-gray-500 pb-2 pr-4">Fund</th>
+                    <th className="text-right font-medium text-gray-500 pb-2 px-3">UCR</th>
+                    <th className="text-right font-medium text-gray-500 pb-2 px-3">DCR</th>
+                    <th className="text-right font-medium text-gray-500 pb-2 px-3">Capture Ratio</th>
+                    <th className="text-right font-medium text-gray-500 pb-2 px-3">Up Consistency</th>
+                    <th className="text-right font-medium text-gray-500 pb-2 pl-3">Down Consistency</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {captureStats.map(({ fund, color, capture }) => (
+                    <tr key={fund.scheme_code} className="hover:bg-gray-50 transition-colors">
+                      <td className="py-3 pr-4">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                          <span className="font-medium text-gray-800 truncate" title={fund.scheme_name}>
+                            {shortName(fund.scheme_name)}
+                          </span>
+                        </div>
+                      </td>
+                      {/* UCR: >100 = outperformed in up market (emerald), <100 = amber */}
+                      <td className="py-3 px-3 text-right">
+                        {isNaN(capture.ucr) ? <span className="text-gray-400">N/A</span> : (
+                          <span className={`font-semibold ${capture.ucr >= 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {capture.ucr.toFixed(1)}
+                          </span>
+                        )}
+                      </td>
+                      {/* DCR: <100 = protected in down market (emerald), >100 = amplified (rose) */}
+                      <td className="py-3 px-3 text-right">
+                        {isNaN(capture.dcr) ? <span className="text-gray-400">N/A</span> : (
+                          <span className={`font-semibold ${capture.dcr <= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {capture.dcr.toFixed(1)}
+                          </span>
+                        )}
+                      </td>
+                      {/* Capture Ratio: >1 = more up than down capture (emerald), <1 = rose */}
+                      <td className="py-3 px-3 text-right">
+                        {isNaN(capture.captureRatio) ? <span className="text-gray-400">N/A</span> : (
+                          <span className={`font-semibold ${capture.captureRatio >= 1 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {capture.captureRatio.toFixed(2)}x
+                          </span>
+                        )}
+                      </td>
+                      {/* Up Consistency: % of up-benchmark periods fund beat benchmark */}
+                      <td className="py-3 px-3 text-right">
+                        {isNaN(capture.upConsistPct) ? <span className="text-gray-400">N/A</span> : (
+                          <span className={`font-semibold ${capture.upConsistPct >= 60 ? 'text-emerald-600' : capture.upConsistPct >= 40 ? 'text-amber-600' : 'text-rose-600'}`}>
+                            {capture.upConsistPct.toFixed(1)}%
+                          </span>
+                        )}
+                      </td>
+                      {/* Down Consistency: % of down-benchmark periods fund fell less */}
+                      <td className="py-3 pl-3 text-right">
+                        {isNaN(capture.downConsistPct) ? <span className="text-gray-400">N/A</span> : (
+                          <span className={`font-semibold ${capture.downConsistPct >= 60 ? 'text-emerald-600' : capture.downConsistPct >= 40 ? 'text-amber-600' : 'text-rose-600'}`}>
+                            {capture.downConsistPct.toFixed(1)}%
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="text-xs text-gray-400 mt-2 space-y-0.5">
+              <p>
+                <span className="font-medium">UCR</span> (Upside Capture Ratio) = mean fund return in rising-benchmark periods / mean benchmark return in those periods × 100.{' '}
+                <span className="text-emerald-600 font-medium">&ge;100</span> = captured more of benchmark gains.
+              </p>
+              <p>
+                <span className="font-medium">DCR</span> (Downside Capture Ratio) = same logic in falling-benchmark periods.{' '}
+                <span className="text-emerald-600 font-medium">&le;100</span> = protected more in drawdowns.
+              </p>
+              <p>
+                <span className="font-medium">Capture Ratio</span> = UCR / DCR.{' '}
+                <span className="text-emerald-600 font-medium">&gt;1x</span> = captured more upside than downside (ideal).{' '}
+                <span className="font-medium">Up/Down Consistency</span> = % of periods where fund outperformed benchmark in rising/falling markets respectively.
+              </p>
+              <p className="text-gray-300">
+                Note: computed from overlapping rolling-return observations (not monthly NAV as per Morningstar convention). Best used for relative comparison across funds.
+              </p>
+            </div>
+          </div>
+
+          {/* ── Section 6b: Per-fund scatter + alpha charts ───────────────── */}
+          <div className="space-y-6">
+            <SectionHeader
+              title="Capture Scatter &amp; Rolling Alpha"
+              subtitle="Left: fund return vs benchmark return per observation · Right: fund − benchmark over time"
+            />
+            {captureStats.map(({ fund, color, scatterData, alphaData }) => {
+              if (!scatterData.length) return null;
+
+              // Alpha gradient: split at y=0
+              const alphas = alphaData.map((d) => d.alpha);
+              const aMax = Math.max(...alphas);
+              const aMin = Math.min(...alphas);
+              const gradId = `alphaGrad_${fund.scheme_code}`;
+              const splitOffset = aMax === aMin
+                ? '50%'
+                : `${Math.max(0, Math.min(100, (aMax / (aMax - aMin)) * 100)).toFixed(1)}%`;
+
+              return (
+                <div key={fund.scheme_code}>
+                  {/* Fund name row */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-sm font-semibold text-gray-800" title={fund.scheme_name}>
+                      {shortName(fund.scheme_name)}
+                    </span>
+                  </div>
+
+                  {/* Side-by-side: scatter (2/5) + alpha chart (3/5) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                    {/* Scatter */}
+                    <div className="sm:col-span-2">
+                      <p className="text-xs text-gray-400 mb-1 text-center">Benchmark vs Fund returns</p>
+                      <ResponsiveContainer width="100%" height={220}>
+                        <ScatterChart margin={{ top: 8, right: 8, bottom: 24, left: 8 }}>
+                          {/* Background zones */}
+                          <ReferenceArea
+                            x1={scatterDomain.x[0]} x2={0}
+                            y1={scatterDomain.y[0]} y2={scatterDomain.y[1]}
+                            fill="#fee2e2" fillOpacity={0.3}
+                          />
+                          <ReferenceArea
+                            x1={0} x2={scatterDomain.x[1]}
+                            y1={scatterDomain.y[0]} y2={scatterDomain.y[1]}
+                            fill="#dcfce7" fillOpacity={0.3}
+                          />
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                          <XAxis
+                            type="number" dataKey="x"
+                            domain={scatterDomain.x}
+                            tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false}
+                            tickFormatter={(v) => `${v.toFixed(0)}%`}
+                            label={{ value: 'Benchmark', position: 'insideBottom', offset: -12, fontSize: 10, fill: '#9ca3af' }}
+                          />
+                          <YAxis
+                            type="number" dataKey="y"
+                            domain={scatterDomain.y}
+                            tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false}
+                            tickFormatter={(v) => `${v.toFixed(0)}%`}
+                            label={{ value: 'Fund', angle: -90, position: 'insideLeft', offset: 12, fontSize: 10, fill: '#9ca3af' }}
+                          />
+                          <ZAxis range={[18, 18]} />
+                          <Tooltip content={<CaptureScatterTooltip />} />
+                          {/* Parity diagonal */}
+                          <ReferenceLine
+                            segment={[
+                              { x: scatterDomain.x[0], y: scatterDomain.x[0] },
+                              { x: scatterDomain.x[1], y: scatterDomain.x[1] },
+                            ]}
+                            stroke="#9ca3af" strokeDasharray="4 2"
+                          />
+                          {/* Axis lines */}
+                          <ReferenceLine x={0} stroke="#d1d5db" />
+                          <ReferenceLine y={0} stroke="#d1d5db" strokeDasharray="3 3" />
+                          <Scatter
+                            data={scatterData}
+                            shape={(props) => {
+                              const { cx, cy, payload } = props;
+                              const above = payload.y > payload.x;
+                              return (
+                                <circle
+                                  cx={cx} cy={cy} r={3.5}
+                                  fill={above ? '#16a34a' : '#dc2626'}
+                                  fillOpacity={0.65}
+                                />
+                              );
+                            }}
+                          />
+                        </ScatterChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Alpha area chart */}
+                    <div className="sm:col-span-3">
+                      <p className="text-xs text-gray-400 mb-1 text-center">Rolling alpha (Fund − Benchmark)</p>
+                      <ResponsiveContainer width="100%" height={220}>
+                        <AreaChart data={alphaData} margin={{ top: 8, right: 8, bottom: 24, left: 8 }}>
+                          <defs>
+                            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset={splitOffset} stopColor="#16a34a" stopOpacity={0.65} />
+                              <stop offset={splitOffset} stopColor="#dc2626" stopOpacity={0.65} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                          <XAxis
+                            dataKey="date" tickFormatter={tickFormatter}
+                            tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false}
+                            interval="preserveStartEnd"
+                          />
+                          <YAxis
+                            tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false}
+                            tickFormatter={(v) => `${v.toFixed(0)}%`}
+                            domain={['auto', 'auto']}
+                          />
+                          <Tooltip content={<AlphaTooltip />} />
+                          <ReferenceLine y={0} stroke="#6b7280" strokeWidth={1.5} />
+                          <Area
+                            type="monotone" dataKey="alpha"
+                            stroke={color} strokeWidth={1.5}
+                            fill={`url(#${gradId})`}
+                            baseValue={0}
+                            dot={false}
+                            connectNulls={false}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          CARD 4 — Drawdown Profile
+      ══════════════════════════════════════════════════════════════════════ */}
+      {hasData && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-gray-900">Drawdown Profile</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Maximum peak-to-trough decline and recovery statistics over the selected date range
+            </p>
+          </div>
+
+          {analyticsLoading && (
+            <div className="flex items-center gap-3 py-6 justify-center text-gray-400 text-sm">
+              <span className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              Computing drawdown statistics…
+            </div>
+          )}
+
+          {!analyticsLoading && !analyticsData && (
+            <p className="text-sm text-gray-400 py-4 text-center">Drawdown data not available.</p>
+          )}
+
+          {!analyticsLoading && analyticsData && (() => {
+            const rows = [
+              {
+                name: shortName(analyticsData.benchmark_name),
+                color: BENCHMARK_COLOR,
+                isBenchmark: true,
+                dd: analyticsData.benchmark_drawdown,
+              },
+              ...analyticsData.funds.map((f) => {
+                const idx = funds.findIndex((fd) => fd.scheme_code === f.scheme_code);
+                return {
+                  name: shortName(f.scheme_name),
+                  color: idx >= 0 ? FUND_COLORS[idx % FUND_COLORS.length] : '#6b7280',
+                  isBenchmark: false,
+                  dd: f.drawdown,
+                };
+              }),
+            ];
+
+            return (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left font-medium text-gray-500 pb-2 pr-4">Fund / Benchmark</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-3">Max Drawdown</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-3">Peak</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-3">Trough</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-3">Duration (days)</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-3">Recovery Date</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 pl-3">Recovery (days)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {rows.map(({ name, color, isBenchmark, dd }) => (
+                      <tr key={name} className="hover:bg-gray-50 transition-colors">
+                        <td className="py-3 pr-4">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isBenchmark
+                              ? <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 border-2" style={{ borderColor: color, backgroundColor: 'white' }} />
+                              : <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                            }
+                            <span className="font-medium text-gray-800 truncate" title={name}>{name}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {/* Mini bar proportional to severity */}
+                            <div className="hidden sm:block w-16 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="h-1.5 rounded-full bg-rose-400"
+                                style={{ width: `${Math.min(100, Math.abs(dd.max_drawdown))}%` }}
+                              />
+                            </div>
+                            <span className="font-semibold text-rose-600 tabular-nums">
+                              {dd.max_drawdown != null ? `${dd.max_drawdown.toFixed(1)}%` : 'N/A'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-right text-gray-600 tabular-nums text-xs">{dd.peak_date ?? '—'}</td>
+                        <td className="py-3 px-3 text-right text-gray-600 tabular-nums text-xs">{dd.trough_date ?? '—'}</td>
+                        <td className="py-3 px-3 text-right text-gray-700 font-medium tabular-nums">
+                          {dd.drawdown_duration_days > 0 ? dd.drawdown_duration_days : '—'}
+                        </td>
+                        <td className="py-3 px-3 text-right text-xs tabular-nums">
+                          {dd.recovery_date
+                            ? <span className="text-emerald-600 font-medium">{dd.recovery_date}</span>
+                            : <span className="text-amber-600 font-medium">Not recovered</span>
+                          }
+                        </td>
+                        <td className="py-3 pl-3 text-right font-medium tabular-nums">
+                          {dd.recovery_days != null
+                            ? <span className="text-gray-700">{dd.recovery_days}</span>
+                            : <span className="text-gray-400">—</span>
+                          }
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+
+          <p className="text-xs text-gray-300 mt-4">
+            Max Drawdown = largest peak-to-trough decline in NAV over the selected period. Duration = calendar days from peak to trough. Recovery = days from trough to regain peak NAV (blank if not yet recovered).
           </p>
         </div>
       )}

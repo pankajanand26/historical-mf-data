@@ -7,6 +7,10 @@ from app.models.performance import (
     FundResult,
     FundWindowResult,
     BenchmarkWindowResult,
+    FundAnalyticsRequest,
+    FundAnalyticsResponse,
+    FundAnalyticsResult,
+    DrawdownStats,
 )
 from app.services.rolling_returns import (
     load_nav_series,
@@ -16,6 +20,7 @@ from app.services.rolling_returns import (
     series_to_point_list,
     WINDOW_MAP,
 )
+from app.services.analytics import load_nav_for_analytics, compute_max_drawdown
 from app.services.benchmarking import get_scheme_name
 from app.config import RISK_FREE_RATE
 
@@ -139,4 +144,52 @@ def get_rolling_returns(request: RollingReturnRequest):
         funds=fund_results,
         benchmark_windows=benchmark_windows,
         risk_free_rate=RISK_FREE_RATE,
+    )
+
+
+@router.post("/fund-analytics", response_model=FundAnalyticsResponse)
+def get_fund_analytics(request: FundAnalyticsRequest):
+    """
+    Compute max drawdown and recovery statistics for each fund and the benchmark
+    over the selected date range. No rolling-window buffer needed here — we use
+    the raw NAV series as-is.
+    """
+    scheme_names: dict[int, str] = {}
+    for sc in request.scheme_codes:
+        name = get_scheme_name(sc)
+        if not name:
+            raise HTTPException(status_code=404, detail=f"Scheme {sc} not found")
+        scheme_names[sc] = name
+
+    benchmark_name = get_scheme_name(request.benchmark_code)
+    if not benchmark_name:
+        raise HTTPException(status_code=404, detail=f"Benchmark scheme {request.benchmark_code} not found")
+
+    # Load benchmark NAV and compute drawdown
+    bench_nav = load_nav_for_analytics(request.benchmark_code, request.start_date, request.end_date)
+    if bench_nav.empty:
+        raise HTTPException(status_code=404, detail=f"No NAV data for benchmark {request.benchmark_code}")
+
+    benchmark_dd = compute_max_drawdown(bench_nav)
+
+    # Load each fund NAV and compute drawdown
+    fund_results: list[FundAnalyticsResult] = []
+    for sc in request.scheme_codes:
+        nav = load_nav_for_analytics(sc, request.start_date, request.end_date)
+        if nav.empty:
+            raise HTTPException(status_code=404, detail=f"No NAV data for scheme {sc}")
+        dd = compute_max_drawdown(nav)
+        fund_results.append(
+            FundAnalyticsResult(
+                scheme_code=sc,
+                scheme_name=scheme_names[sc],
+                drawdown=DrawdownStats(**dd),
+            )
+        )
+
+    return FundAnalyticsResponse(
+        benchmark_code=request.benchmark_code,
+        benchmark_name=benchmark_name,
+        benchmark_drawdown=DrawdownStats(**benchmark_dd),
+        funds=fund_results,
     )

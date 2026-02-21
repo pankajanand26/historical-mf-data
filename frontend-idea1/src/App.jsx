@@ -6,6 +6,7 @@ import WindowSelector from './components/controls/WindowSelector';
 import DateRangePicker from './components/controls/DateRangePicker';
 import RollingReturnChart from './components/charts/RollingReturnChart';
 import { useRollingReturns } from './hooks/useRollingReturns';
+import { useFundAnalytics } from './hooks/useFundAnalytics';
 
 const getDateRange = (preset, startDate, endDate) => {
   if (preset === 'custom') return { startDate, endDate };
@@ -32,20 +33,22 @@ const App = () => {
   const [endDate, setEndDate] = useState(null);
 
   const { data, loading, error, fetch: fetchReturns, reset } = useRollingReturns();
+  const { data: analyticsData, loading: analyticsLoading, fetch: fetchAnalytics, reset: resetAnalytics } = useFundAnalytics();
 
   const canAnalyze = selectedFunds.length > 0 && selectedBenchmark && windows.length > 0 && !loading;
 
   const handleAnalyze = useCallback(() => {
     if (!canAnalyze) return;
     const { startDate: sd, endDate: ed } = getDateRange(datePreset, startDate, endDate);
-    fetchReturns({
+    const params = {
       schemeCodes: selectedFunds.map((f) => f.scheme_code),
       benchmarkCode: selectedBenchmark.scheme_code,
-      windows,
       startDate: sd,
       endDate: ed,
-    });
-  }, [canAnalyze, selectedFunds, selectedBenchmark, windows, datePreset, startDate, endDate, fetchReturns]);
+    };
+    fetchReturns({ ...params, windows });
+    fetchAnalytics(params);
+  }, [canAnalyze, selectedFunds, selectedBenchmark, windows, datePreset, startDate, endDate, fetchReturns, fetchAnalytics]);
 
   const handleFundAdd = useCallback((fund) => {
     setSelectedFunds((prev) => {
@@ -54,16 +57,19 @@ const App = () => {
       return [...prev, fund];
     });
     reset();
-  }, [reset]);
+    resetAnalytics();
+  }, [reset, resetAnalytics]);
 
   const handleFundRemove = useCallback((schemeCode) => {
     setSelectedFunds((prev) => prev.filter((f) => f.scheme_code !== schemeCode));
     reset();
-  }, [reset]);
+    resetAnalytics();
+  }, [reset, resetAnalytics]);
 
   const handleBenchmarkSelect = (b) => {
     setSelectedBenchmark(b);
     reset();
+    resetAnalytics();
   };
 
   return (
@@ -167,7 +173,7 @@ const App = () => {
             )}
 
             {data && !loading && (
-              <RollingReturnChart data={data} />
+              <RollingReturnChart data={data} analyticsData={analyticsData} analyticsLoading={analyticsLoading} />
             )}
           </section>
         </div>

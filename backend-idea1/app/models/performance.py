@@ -73,3 +73,43 @@ class RollingReturnResponse(BaseModel):
     funds: list[FundResult]
     benchmark_windows: list[BenchmarkWindowResult]
     risk_free_rate: float   # annual risk-free rate used for Sharpe / Sortino (e.g. 0.065)
+
+
+# ── Fund Analytics (max drawdown + recovery) ─────────────────────────────────
+
+class FundAnalyticsRequest(BaseModel):
+    scheme_codes: list[int]
+    benchmark_code: int
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+    @field_validator("scheme_codes")
+    @classmethod
+    def at_least_one_scheme(cls, v: list[int]) -> list[int]:
+        if not v:
+            raise ValueError("At least one scheme_code is required")
+        if len(v) > 5:
+            raise ValueError("Maximum 5 funds can be compared at once")
+        return v
+
+
+class DrawdownStats(BaseModel):
+    max_drawdown: float                     # % negative, e.g. -38.5
+    peak_date: Optional[str] = None
+    trough_date: Optional[str] = None
+    drawdown_duration_days: int = 0
+    recovery_date: Optional[str] = None    # None if not yet recovered
+    recovery_days: Optional[int] = None    # None if not yet recovered
+
+
+class FundAnalyticsResult(BaseModel):
+    scheme_code: int
+    scheme_name: str
+    drawdown: DrawdownStats
+
+
+class FundAnalyticsResponse(BaseModel):
+    benchmark_code: int
+    benchmark_name: str
+    benchmark_drawdown: DrawdownStats
+    funds: list[FundAnalyticsResult]

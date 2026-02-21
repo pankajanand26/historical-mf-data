@@ -49,4 +49,19 @@ export const fetchRollingReturns = async (payload) => {
   return data;
 };
 
+/**
+ * Compute max drawdown and recovery stats for a set of funds vs a benchmark.
+ * @param {{
+ *   scheme_codes: number[],
+ *   benchmark_code: number,
+ *   start_date?: string,
+ *   end_date?: string
+ * }} payload
+ * @returns {Promise<import('./types').FundAnalyticsResponse>}
+ */
+export const fetchFundAnalytics = async (payload) => {
+  const { data } = await api.post('/api/performance/fund-analytics', payload);
+  return data;
+};
+
 export default api;
