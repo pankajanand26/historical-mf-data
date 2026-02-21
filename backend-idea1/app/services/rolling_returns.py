@@ -93,16 +93,27 @@ def build_window_data(
     scheme_name: str,
     benchmark_name: str,
     max_points: int = 500,
+    clip_start: Optional[date] = None,
 ) -> dict:
     """
     Build the full result dict for a single rolling window.
     Downsamples to `max_points` evenly-spaced observations if needed.
+
+    clip_start: if set, only return rolling-return data points on or after
+    this date.  Use this when NAV was fetched with an earlier start to
+    provide the rolling window's look-back buffer.
     """
     window_days = WINDOW_MAP.get(window)
     if window_days is None:
         raise ValueError(f"Unsupported window: {window}. Must be one of {list(WINDOW_MAP.keys())}")
 
     scheme_r, benchmark_r = align_series(scheme_nav, benchmark_nav, window_days)
+
+    # Clip to user's requested start date (strip the look-back buffer)
+    if clip_start is not None and not scheme_r.empty:
+        clip_ts = pd.Timestamp(clip_start)
+        scheme_r = scheme_r[scheme_r.index >= clip_ts]
+        benchmark_r = benchmark_r[benchmark_r.index >= clip_ts]
 
     if scheme_r.empty:
         return {
