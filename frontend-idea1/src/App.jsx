@@ -7,6 +7,7 @@ import DateRangePicker from './components/controls/DateRangePicker';
 import RollingReturnChart from './components/charts/RollingReturnChart';
 import { useRollingReturns } from './hooks/useRollingReturns';
 import { useFundAnalytics } from './hooks/useFundAnalytics';
+import PortfolioOptimizerView from './components/portfolio/PortfolioOptimizerView';
 
 const getDateRange = (preset, startDate, endDate) => {
   if (preset === 'custom') return { startDate, endDate };
@@ -25,6 +26,8 @@ const getDateRange = (preset, startDate, endDate) => {
 };
 
 const App = () => {
+  const [activeTab, setActiveTab] = useState('performance'); // 'performance' | 'portfolio'
+
   const [selectedFunds, setSelectedFunds] = useState([]);   // [{ scheme_code, scheme_name }]
   const [selectedBenchmark, setSelectedBenchmark] = useState(null);
   const [windows, setWindows] = useState(['3y']);
@@ -76,16 +79,45 @@ const App = () => {
     <Layout>
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Performance Attribution & Benchmarking</h1>
-            <p className="text-sm text-gray-500">Rolling return analysis · Indian mutual funds · AMFI data</p>
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Indian MF Analytics</h1>
+              <p className="text-sm text-gray-500">AMFI data · 19 years · Direct Growth plans</p>
+            </div>
+            <span className="hidden sm:inline text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Idea 1</span>
           </div>
-          <span className="hidden sm:inline text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Idea 1</span>
+
+          {/* Tab toggle */}
+          <div className="flex gap-1">
+            <button
+              onClick={() => setActiveTab('performance')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'performance'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Performance Attribution
+            </button>
+            <button
+              onClick={() => setActiveTab('portfolio')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'portfolio'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Portfolio Optimizer
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+
+        {/* ── Performance Attribution tab ────────────────────────── */}
+        {activeTab === 'performance' && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
           {/* ---- Left panel: controls ---- */}
@@ -177,6 +209,11 @@ const App = () => {
             )}
           </section>
         </div>
+        )}
+
+        {/* ── Portfolio Optimizer tab ────────────────────────────── */}
+        {activeTab === 'portfolio' && <PortfolioOptimizerView />}
+
       </main>
     </Layout>
   );
