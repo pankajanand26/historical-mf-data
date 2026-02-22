@@ -13,5 +13,5 @@ export function useIndexFunds() {
       .finally(() => setLoading(false));
   }, []);
 
-  return { indexFunds, loading, error };
+  return { funds: indexFunds, loading, error };
 }

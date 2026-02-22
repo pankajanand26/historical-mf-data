@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { searchSchemes } from '../services/api';
 
 export function useFundSearch() {
@@ -6,13 +6,13 @@ export function useFundSearch() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [debounceTimer, setDebounceTimer] = useState(null);
+  const timerRef = useRef(null);
 
   const search = useCallback((q) => {
     setQuery(q);
-    if (debounceTimer) clearTimeout(debounceTimer);
+    if (timerRef.current) clearTimeout(timerRef.current);
     if (!q || q.length < 2) { setResults([]); return; }
-    const timer = setTimeout(async () => {
+    timerRef.current = setTimeout(async () => {
       setLoading(true);
       setError(null);
       try {
@@ -24,8 +24,7 @@ export function useFundSearch() {
         setLoading(false);
       }
     }, 300);
-    setDebounceTimer(timer);
-  }, [debounceTimer]);
+  }, []);
 
   const clear = useCallback(() => { setQuery(''); setResults([]); }, []);
 
