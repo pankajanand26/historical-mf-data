@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply text-gray-900 antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  /* Scrollbar styling for terminal concept */
+  .terminal-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+  .terminal-scrollbar::-webkit-scrollbar-track { background: #161b22; }
+  .terminal-scrollbar::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  .terminal-scrollbar::-webkit-scrollbar-thumb:hover { background: #8b949e; }
+
+  /* Thin scrollbar for workbench */
+  .thin-scrollbar::-webkit-scrollbar { width: 4px; }
+  .thin-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .thin-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+  /* Mono number rendering */
+  .tabular-mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+}
