@@ -2,17 +2,11 @@ import { useState } from 'react';
 import ConceptSelector from './ConceptSelector';
 import TerminalApp from './concepts/1-terminal/TerminalApp';
 import EditorialApp from './concepts/2-editorial/EditorialApp';
-import SaasApp from './concepts/3-saas-grid/SaasApp';
-import WizardApp from './concepts/4-wizard/WizardApp';
-import WorkbenchApp from './concepts/5-workbench/WorkbenchApp';
 
 const CONCEPTS = {
   selector: null,
   1: TerminalApp,
   2: EditorialApp,
-  3: SaasApp,
-  4: WizardApp,
-  5: WorkbenchApp,
 };
 
 const App = () => {

@@ -213,7 +213,26 @@ export function buildScatterData(chartData, fund) {
     .map((row) => ({
       x: parseFloat(row.benchmark.toFixed(3)),
       y: parseFloat(row[key].toFixed(3)),
+      outperf: row[key] > row.benchmark,
     }));
+}
+
+export function buildDrawdownSeries(chartData, fund) {
+  const key = `fund_${fund.scheme_code}`;
+  const rows = chartData.filter((row) => row[key] != null && row.benchmark != null);
+  if (rows.length === 0) return [];
+  let fundPeak = -Infinity, benchPeak = -Infinity;
+  return rows.map((row) => {
+    const fundNav = 100 + row[key];
+    const benchNav = 100 + row.benchmark;
+    fundPeak = Math.max(fundPeak, fundNav);
+    benchPeak = Math.max(benchPeak, benchNav);
+    return {
+      date: row.date,
+      fundDD: parseFloat(((fundNav / fundPeak - 1) * 100).toFixed(3)),
+      benchmarkDD: parseFloat(((benchNav / benchPeak - 1) * 100).toFixed(3)),
+    };
+  });
 }
 
 export function buildAlphaData(chartData, fund) {
@@ -237,6 +256,7 @@ export function computeAllStats(funds, chartData, rfPct) {
     capture: computeCaptureStats(chartData, fund),
     scatterData: buildScatterData(chartData, fund),
     alphaData: buildAlphaData(chartData, fund),
+    ddSeries: buildDrawdownSeries(chartData, fund),
   }));
 }
 

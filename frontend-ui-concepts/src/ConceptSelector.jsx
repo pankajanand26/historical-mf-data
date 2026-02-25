@@ -25,45 +25,6 @@ const CONCEPTS = [
     badgeBg: '#e8f0e8',
     badgeText: '#1e3a5f',
   },
-  {
-    id: 3,
-    name: 'SaaS Dashboard',
-    tagline: 'Card Grid · Collapsible Sidebar · Linear-style',
-    description: 'Floating white cards on slate background. Icon sidebar that collapses. Four analysis tabs: Returns · Risk · Capture · Drawdown.',
-    accent: '#6366f1',
-    bg: '#f8fafc',
-    textColor: '#0f172a',
-    preview: 'saas',
-    badge: 'Light',
-    badgeBg: '#eef2ff',
-    badgeText: '#4f46e5',
-  },
-  {
-    id: 4,
-    name: 'Guided Flow',
-    tagline: 'Step Wizard · Consumer-Friendly · Fintech-style',
-    description: 'Three-step flow: Select Funds → Configure → Results. Large touch-friendly controls. Friendly empty states and progress indicator.',
-    accent: '#7c3aed',
-    bg: '#f5f3ff',
-    textColor: '#1e1b4b',
-    preview: 'wizard',
-    badge: 'Light',
-    badgeBg: '#f5f3ff',
-    badgeText: '#7c3aed',
-  },
-  {
-    id: 5,
-    name: 'Workbench',
-    tagline: 'Resizable Panels · Dark/Light · VSCode-style',
-    description: 'Drag-to-resize side panel. Persistent fund diff strip. Tabbed analysis panes with mini TOC. Dark/light mode toggle.',
-    accent: '#3b82f6',
-    bg: '#1e1e2e',
-    textColor: '#cdd6f4',
-    preview: 'workbench',
-    badge: 'Dark + Light',
-    badgeBg: '#1e293b',
-    badgeText: '#60a5fa',
-  },
 ];
 
 // Preview SVG thumbnails — abstract representations of each layout
@@ -113,94 +74,6 @@ const PreviewThumbnail = ({ id }) => {
     </svg>
   );
 
-  if (id === 3) return (
-    <svg viewBox="0 0 280 160" className="w-full h-full">
-      <rect width="280" height="160" fill="#f8fafc" />
-      {/* Sidebar */}
-      <rect x="0" y="0" width="36" height="160" fill="#fff" stroke="#e2e8f0" strokeWidth="0.5" />
-      <rect x="8" y="12" width="20" height="20" rx="4" fill="#6366f1" opacity="0.15" />
-      <rect x="12" y="18" width="12" height="8" rx="2" fill="#6366f1" opacity="0.5" />
-      <rect x="8" y="40" width="20" height="20" rx="4" fill="#f1f5f9" />
-      <rect x="8" y="68" width="20" height="20" rx="4" fill="#f1f5f9" />
-      <rect x="8" y="96" width="20" height="20" rx="4" fill="#f1f5f9" />
-      {/* Top bar */}
-      <rect x="36" y="0" width="244" height="32" fill="#fff" stroke="#e2e8f0" strokeWidth="0.5" />
-      <rect x="44" y="10" width="80" height="12" rx="6" fill="#6366f1" opacity="0.9" />
-      <rect x="132" y="10" width="50" height="12" rx="6" fill="#f1f5f9" stroke="#e2e8f0" strokeWidth="0.5" />
-      <rect x="190" y="10" width="50" height="12" rx="6" fill="#f1f5f9" stroke="#e2e8f0" strokeWidth="0.5" />
-      {/* Card grid */}
-      <rect x="44" y="40" width="112" height="52" rx="4" fill="#fff" stroke="#e2e8f0" strokeWidth="0.5" />
-      <rect x="164" y="40" width="112" height="52" rx="4" fill="#fff" stroke="#e2e8f0" strokeWidth="0.5" />
-      <rect x="44" y="100" width="112" height="52" rx="4" fill="#fff" stroke="#e2e8f0" strokeWidth="0.5" />
-      <rect x="164" y="100" width="112" height="52" rx="4" fill="#fff" stroke="#e2e8f0" strokeWidth="0.5" />
-      {/* Chart in card 1 */}
-      <polyline points="52,82 72,72 92,77 112,62 132,68 152,55 156,58" stroke="#6366f1" strokeWidth="1.5" fill="none" />
-      {/* Chart in card 2 */}
-      <polyline points="172,82 192,75 212,79 232,68 252,72 272,60 276,63" stroke="#dc2626" strokeWidth="1.5" fill="none" />
-    </svg>
-  );
-
-  if (id === 4) return (
-    <svg viewBox="0 0 280 160" className="w-full h-full">
-      <rect width="280" height="160" fill="#f5f3ff" />
-      {/* Step indicator */}
-      <rect x="40" y="12" width="200" height="3" rx="1.5" fill="#ddd6fe" />
-      <rect x="40" y="12" width="100" height="3" rx="1.5" fill="#7c3aed" />
-      <circle cx="40" cy="13.5" r="8" fill="#7c3aed" />
-      <circle cx="140" cy="13.5" r="8" fill="#7c3aed" />
-      <circle cx="240" cy="13.5" r="8" fill="#ddd6fe" />
-      <rect x="34" y="9" width="12" height="9" rx="2" fill="#7c3aed" />
-      <text x="36" y="17" fontSize="7" fill="white" fontWeight="bold">1</text>
-      <text x="136" y="17" fontSize="7" fill="white" fontWeight="bold">2</text>
-      <text x="236" y="17" fontSize="7" fill="#7c3aed" fontWeight="bold">3</text>
-      {/* Big form area */}
-      <rect x="20" y="30" width="240" height="100" rx="8" fill="#fff" stroke="#ddd6fe" strokeWidth="1" />
-      <rect x="36" y="44" width="80" height="10" rx="2" fill="#7c3aed" opacity="0.15" />
-      <rect x="36" y="58" width="208" height="18" rx="4" fill="#f5f3ff" stroke="#ddd6fe" strokeWidth="0.8" />
-      <rect x="36" y="80" width="208" height="18" rx="4" fill="#f5f3ff" stroke="#ddd6fe" strokeWidth="0.8" />
-      <rect x="36" y="102" width="208" height="18" rx="4" fill="#f5f3ff" stroke="#ddd6fe" strokeWidth="0.8" />
-      {/* Nav */}
-      <rect x="188" y="138" width="60" height="14" rx="7" fill="#7c3aed" />
-      <rect x="32" y="138" width="60" height="14" rx="7" fill="#ede9fe" />
-    </svg>
-  );
-
-  if (id === 5) return (
-    <svg viewBox="0 0 280 160" className="w-full h-full">
-      <rect width="280" height="160" fill="#1e1e2e" />
-      {/* Top bar */}
-      <rect x="0" y="0" width="280" height="28" fill="#181825" />
-      <rect x="8" y="8" width="60" height="12" rx="2" fill="#cba6f7" opacity="0.8" />
-      <rect x="76" y="8" width="80" height="12" rx="2" fill="#313244" />
-      <rect x="240" y="8" width="32" height="12" rx="6" fill="#313244" />
-      {/* Diff strip */}
-      <rect x="0" y="28" width="280" height="18" fill="#1e1e2e" stroke="#313244" strokeWidth="0.5" />
-      <rect x="8" y="32" width="50" height="8" rx="4" fill="#a6e3a1" opacity="0.3" />
-      <rect x="66" y="32" width="50" height="8" rx="4" fill="#f38ba8" opacity="0.3" />
-      <rect x="124" y="32" width="50" height="8" rx="4" fill="#89b4fa" opacity="0.3" />
-      {/* Left panel */}
-      <rect x="0" y="46" width="68" height="114" fill="#181825" />
-      <rect x="6" y="54" width="56" height="28" rx="3" fill="#313244" />
-      <rect x="10" y="58" width="40" height="6" rx="1" fill="#cdd6f4" opacity="0.5" />
-      <rect x="10" y="68" width="30" height="5" rx="1" fill="#cdd6f4" opacity="0.3" />
-      <rect x="6" y="88" width="56" height="8" rx="3" fill="#313244" />
-      <rect x="6" y="100" width="56" height="8" rx="3" fill="#313244" />
-      <rect x="6" y="112" width="56" height="8" rx="3" fill="#313244" />
-      {/* Resize handle */}
-      <rect x="67" y="46" width="2" height="114" fill="#313244" />
-      {/* Right panel — tabs */}
-      <rect x="70" y="46" width="210" height="16" fill="#1e1e2e" />
-      <rect x="72" y="48" width="40" height="12" rx="2" fill="#cba6f7" opacity="0.3" />
-      <rect x="118" y="48" width="40" height="12" rx="2" fill="#313244" />
-      <rect x="164" y="48" width="40" height="12" rx="2" fill="#313244" />
-      <rect x="210" y="48" width="40" height="12" rx="2" fill="#313244" />
-      {/* Chart */}
-      <rect x="70" y="64" width="210" height="96" fill="#1e1e2e" />
-      <polyline points="78,145 108,128 138,135 168,112 198,120 228,98 268,105" stroke="#89b4fa" strokeWidth="2" fill="none" />
-      <polyline points="78,148 108,138 138,142 168,125 198,128 228,115 268,118" stroke="#a6e3a1" strokeWidth="1.5" fill="none" strokeDasharray="4 2" />
-    </svg>
-  );
-
   return null;
 };
 
@@ -210,21 +83,21 @@ const ConceptSelector = ({ onSelect }) => (
     <header className="px-8 pt-12 pb-8 text-center">
       <div className="inline-flex items-center gap-2 bg-white/10 text-white/60 text-xs font-mono px-3 py-1.5 rounded-full mb-6 border border-white/10">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        5 UI Concepts · Indian MF Analytics
+        2 UI Concepts · Indian MF Analytics
       </div>
       <h1 className="text-4xl font-bold text-white mb-3 tracking-tight">
         Performance Attribution
         <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400"> & Benchmarking</span>
       </h1>
       <p className="text-slate-400 text-base max-w-xl mx-auto">
-        Five distinct UI approaches — same data, same functionality, radically different experiences.
+        Two distinct UI approaches — same data, same functionality, radically different experiences.
         Pick one to explore.
       </p>
     </header>
 
     {/* Concept cards */}
     <main className="flex-1 px-6 pb-12 max-w-6xl mx-auto w-full">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-5">
         {CONCEPTS.map((c) => (
           <button
             key={c.id}
