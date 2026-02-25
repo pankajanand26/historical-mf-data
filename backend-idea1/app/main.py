@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import schemes_router, performance_router, portfolio_router
+from app.routers import schemes_router, performance_router
 
 app = FastAPI(
     title="Performance Attribution & Benchmarking API",
@@ -18,7 +18,6 @@ app.add_middleware(
 
 app.include_router(schemes_router)
 app.include_router(performance_router)
-app.include_router(portfolio_router)
 
 
 @app.get("/")

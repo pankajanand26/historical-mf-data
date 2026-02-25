@@ -64,33 +64,4 @@ export const fetchFundAnalytics = async (payload) => {
   return data;
 };
 
-// ---------- Portfolio Optimiser ----------
-
-/**
- * Fetch normalised month-end NAV growth for all 6 asset class proxies.
- * @param {{ start_date?: string, end_date?: string }} payload
- */
-export const fetchPortfolioNav = async (payload = {}) => {
-  const { data } = await api.post('/api/portfolio/nav', payload, { timeout: 120_000 });
-  return data;
-};
-
-/**
- * Fetch full-period + rolling 12-month correlation matrix.
- * @param {{ start_date?: string, end_date?: string }} payload
- */
-export const fetchCorrelation = async (payload = {}) => {
-  const { data } = await api.post('/api/portfolio/correlation', payload, { timeout: 120_000 });
-  return data;
-};
-
-/**
- * Run MVO + Monte Carlo optimisation and return results.
- * @param {{ start_date?: string, end_date?: string }} payload
- */
-export const fetchOptimize = async (payload = {}) => {
-  const { data } = await api.post('/api/portfolio/optimize', payload, { timeout: 120_000 });
-  return data;
-};
-
 export default api;
