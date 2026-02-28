@@ -20,7 +20,7 @@ const BenchmarkPicker = ({ selectedBenchmark, onSelect }) => {
   const fuse = useMemo(() => new Fuse(indexFunds, FUSE_OPTIONS), [indexFunds]);
 
   const filtered = useMemo(() => {
-    if (!filter.trim()) return indexFunds;
+    if (!filter.trim()) return [];
     return fuse.search(filter.trim()).map((r) => r.item);
   }, [fuse, indexFunds, filter]);
 
@@ -70,7 +70,7 @@ const BenchmarkPicker = ({ selectedBenchmark, onSelect }) => {
         </div>
       ) : (
         <div className="border border-gray-300 rounded-lg overflow-hidden">
-          <div className="p-2 border-b border-gray-200 bg-gray-50">
+          <div className="p-2 bg-gray-50">
             <input
               type="text"
               value={filter}
@@ -79,22 +79,24 @@ const BenchmarkPicker = ({ selectedBenchmark, onSelect }) => {
               className="w-full text-sm bg-transparent outline-none placeholder-gray-400"
             />
           </div>
-          <ul className="max-h-48 overflow-y-auto divide-y divide-gray-100">
-            {filtered.length === 0 && (
-              <li className="px-3 py-2 text-sm text-gray-400">No index funds found</li>
-            )}
-            {filtered.map((fund) => (
-              <li key={fund.scheme_code}>
-                <button
-                  className="w-full text-left px-3 py-2 hover:bg-green-50 text-sm"
-                  onClick={() => { onSelect(fund); setFilter(''); }}
-                >
-                  <span className="font-medium text-gray-900 block truncate">{fund.scheme_name}</span>
-                  <span className="text-xs text-gray-400">Code: {fund.scheme_code}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          {filter.trim() && (
+            <ul className="max-h-48 overflow-y-auto divide-y divide-gray-100 border-t border-gray-200">
+              {filtered.length === 0 && (
+                <li className="px-3 py-2 text-sm text-gray-400">No index funds found</li>
+              )}
+              {filtered.map((fund) => (
+                <li key={fund.scheme_code}>
+                  <button
+                    className="w-full text-left px-3 py-2 hover:bg-green-50 text-sm"
+                    onClick={() => { onSelect(fund); setFilter(''); }}
+                  >
+                    <span className="font-medium text-gray-900 block truncate">{fund.scheme_name}</span>
+                    <span className="text-xs text-gray-400">Code: {fund.scheme_code}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

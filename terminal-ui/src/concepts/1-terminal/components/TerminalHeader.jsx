@@ -116,7 +116,7 @@ const BenchmarkPopover = ({ selectedBenchmark, onSelect }) => {
   const fuse = useMemo(() => new Fuse(funds, FUSE_OPTIONS), [funds]);
 
   const filtered = useMemo(() => {
-    if (!filter.trim()) return funds;
+    if (!filter.trim()) return [];
     return fuse.search(filter.trim()).map((r) => r.item);
   }, [fuse, funds, filter]);
 
@@ -144,6 +144,9 @@ const BenchmarkPopover = ({ selectedBenchmark, onSelect }) => {
         />
         <ul className="max-h-48 overflow-y-auto terminal-scrollbar">
           {loading && <li className="text-xs text-terminal-muted p-2">Loading…</li>}
+          {!loading && filter.trim() && filtered.length === 0 && (
+            <li className="text-xs text-terminal-muted p-2">No results</li>
+          )}
           {filtered.map((f) => (
             <li key={f.scheme_code} data-close onClick={() => { onSelect(f); setFilter(''); }}
               className="px-2 py-2 text-xs text-terminal-text hover:bg-terminal-bg hover:text-terminal-green cursor-pointer rounded">
