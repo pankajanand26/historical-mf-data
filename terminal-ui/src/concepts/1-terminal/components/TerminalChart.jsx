@@ -307,37 +307,8 @@ const CaptureSection = ({ data, rfRate }) => {
         </table>
       </div>
 
-      {/* ── Down Market Alpha ─────────────────────────────────────── */}
-      <SectionLabel>Down Market Alpha</SectionLabel>
-      <p className="text-[10px] text-terminal-muted -mt-3">
-        Average excess return (fund − benchmark) in {curWin.toUpperCase()} rolling periods where benchmark &lt; 0
-      </p>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr>
-              <Th>Fund</Th>
-              <Th right>Down Mkt Alpha</Th>
-              <Th right>Down Periods</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {allStats.map(({ fund, color, capture }) => (
-              <tr key={fund.scheme_code} className="hover:bg-terminal-surface/60">
-                <Td><FundDot color={color} name={fund.scheme_name} /></Td>
-                <Td right accent={isNaN(capture.downAlpha) ? 'text-terminal-muted' : capture.downAlpha >= 0 ? 'text-terminal-green' : 'text-terminal-red'}>
-                  {isNaN(capture.downAlpha) ? '—' : `${capture.downAlpha >= 0 ? '+' : ''}${capture.downAlpha.toFixed(2)}%`}
-                </Td>
-                <Td right>
-                  {capture.downPeriods > 0 ? capture.downPeriods : <span className="text-terminal-muted">—</span>}
-                </Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <SectionLabel>Benchmark vs Fund Returns (per fund)</SectionLabel>      <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+      <SectionLabel>Benchmark vs Fund Returns (per fund)</SectionLabel>
+      <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
         {allStats.map(({ fund, color, scatterData }) => {
           const xs = scatterData.map((d) => d.x), ys = scatterData.map((d) => d.y);
           const allVals = [...xs, ...ys];
