@@ -121,3 +121,43 @@ def series_to_point_list(series: pd.Series) -> list[dict]:
         }
         for dt, v in series.items()
     ]
+
+
+def compute_monthly_returns(
+    nav: pd.Series,
+    clip_start: Optional[date] = None,
+) -> pd.Series:
+    """
+    Compute non-overlapping monthly returns using month-end NAV values.
+
+    Steps:
+      1. Resample the NAV series to month-end (last trading day per calendar month).
+      2. Compute pct_change(1) to get month-over-month decimal returns.
+      3. Optionally clip to dates >= clip_start.
+
+    Returns a date-indexed Series of decimal returns (e.g. 0.0312 = 3.12%).
+    Values are NOT multiplied by 100 — kept as decimals for the CAGR product formula.
+    """
+    if nav.empty or len(nav) < 2:
+        return pd.Series(dtype=float)
+
+    monthly = nav.resample("ME").last().dropna()
+    returns = monthly.pct_change(1).dropna()
+
+    if clip_start is not None and not returns.empty:
+        returns = returns[returns.index >= pd.Timestamp(clip_start)]
+
+    return returns
+
+
+def monthly_returns_to_point_list(series: pd.Series) -> list[dict]:
+    """Convert monthly-return Series to [{date, value}, ...] dicts.
+    Values are decimal returns (e.g. 0.0312), NOT multiplied by 100.
+    """
+    return [
+        {
+            "date": dt.strftime("%Y-%m-%d"),
+            "value": round(float(v), 6) if not np.isnan(v) else None,
+        }
+        for dt, v in series.items()
+    ]

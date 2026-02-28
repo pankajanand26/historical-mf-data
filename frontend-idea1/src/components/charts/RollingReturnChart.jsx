@@ -259,6 +259,83 @@ function computeCaptureStats(chartData, fund) {
 }
 
 /**
+ * Freefincal-style capture ratios using non-overlapping monthly returns.
+ *
+ * Methodology (matches Freefincal's published approach):
+ *   1. Align benchmark and fund on shared month-end dates.
+ *   2. Filter to UP months  (benchmark > 0) → compute CAGR product for fund & bench.
+ *   3. Filter to DOWN months (benchmark < 0) → compute CAGR product for fund & bench.
+ *   4. UCR  = upCAGR_fund  / upCAGR_bench    (× 100 → expressed as %)
+ *   5. DCR  = downCAGR_fund / downCAGR_bench  (× 100 → expressed as %)
+ *   6. Capture Ratio = UCR / DCR
+ *
+ * CAGR from filtered monthly returns:
+ *   CAGR = [ ∏(1 + rᵢ) ] ^ (12/n) − 1   where n = count of filtered months
+ *
+ * @param {Object} monthlyReturns  - data.monthly_returns from the API response.
+ *   Shape: { benchmark: [{date, value}, ...], fund_<sc>: [{date, value}, ...] }
+ *   Values are decimal returns (e.g. 0.0312 = +3.12%).
+ * @param {Object} fund - fund object with scheme_code.
+ */
+function computeFreefincalCaptureStats(monthlyReturns, fund) {
+  if (!monthlyReturns) return null;
+  const key = `fund_${fund.scheme_code}`;
+
+  const benchPoints = monthlyReturns.benchmark ?? [];
+  const fundPoints  = monthlyReturns[key] ?? [];
+
+  if (!benchPoints.length || !fundPoints.length) return null;
+
+  // Build lookup map for fund monthly returns by date
+  const fundMap = new Map(fundPoints.map(p => [p.date, p.value]));
+
+  const upFund = [], upBench = [], downFund = [], downBench = [];
+
+  for (const bp of benchPoints) {
+    const bv = bp.value;
+    const fv = fundMap.get(bp.date);
+    if (bv == null || fv == null) continue;
+
+    if (bv > 0) {
+      upBench.push(bv);
+      upFund.push(fv);
+    } else if (bv < 0) {
+      downBench.push(bv);
+      downFund.push(fv);
+    }
+    // months where benchmark == 0 are excluded (as per Freefincal)
+  }
+
+  // CAGR product formula: [ ∏(1 + rᵢ) ] ^ (12/n) − 1
+  const cagrFromMonthly = (arr) => {
+    if (!arr.length) return NaN;
+    const product = arr.reduce((acc, r) => acc * (1 + r), 1);
+    return Math.pow(product, 12 / arr.length) - 1;
+  };
+
+  const upCAGR_bench = cagrFromMonthly(upBench);
+  const upCAGR_fund  = cagrFromMonthly(upFund);
+  const downCAGR_bench = cagrFromMonthly(downBench);
+  const downCAGR_fund  = cagrFromMonthly(downFund);
+
+  // Express as % (multiply by 100), then ratio (already dimensionless)
+  const ucr = (!isNaN(upCAGR_fund) && !isNaN(upCAGR_bench) && upCAGR_bench !== 0)
+    ? (upCAGR_fund / upCAGR_bench) * 100 : NaN;
+  const dcr = (!isNaN(downCAGR_fund) && !isNaN(downCAGR_bench) && downCAGR_bench !== 0)
+    ? (downCAGR_fund / downCAGR_bench) * 100 : NaN;
+  const captureRatio = (!isNaN(ucr) && !isNaN(dcr) && dcr !== 0)
+    ? ucr / dcr : NaN;
+
+  return {
+    ucr, dcr, captureRatio,
+    upMonths: upFund.length,
+    downMonths: downFund.length,
+    totalMonths: upFund.length + downFund.length,
+    upCAGR_fund, upCAGR_bench, downCAGR_fund, downCAGR_bench,
+  };
+}
+
+/**
  * Build scatter data for a single fund: [{x: benchReturn, y: fundReturn}]
  * x = benchmark rolling return, y = fund rolling return.
  */
@@ -427,6 +504,7 @@ const RollingReturnChart = ({ data, analyticsData, analyticsLoading }) => {
     fund,
     color: FUND_COLORS[idx % FUND_COLORS.length],
     capture: computeCaptureStats(chartData, fund),
+    freefincal: computeFreefincalCaptureStats(data?.monthly_returns, fund),
     scatterData: buildScatterData(chartData, fund),
     alphaData: buildAlphaData(chartData, fund),
   }));
@@ -1150,6 +1228,94 @@ const RollingReturnChart = ({ data, analyticsData, analyticsLoading }) => {
                 <span className="text-rose-600 font-medium">Negative</span> = fund amplified losses relative to the benchmark (typically driven by expense ratio drag for index funds).
               </p>
             </div>
+
+            {/* ── Freefincal-style Capture Ratios (monthly CAGR method) ──── */}
+            {captureStats.some((s) => s.freefincal !== null) && (
+              <div className="mt-6">
+                <SectionHeader
+                  title="Freefincal-style Capture Ratios"
+                  subtitle="Monthly CAGR method · non-overlapping month-end NAV returns · benchmark months where return = 0 excluded"
+                />
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left font-medium text-gray-500 pb-2 pr-4">Fund</th>
+                        <th className="text-right font-medium text-gray-500 pb-2 px-3">UCR</th>
+                        <th className="text-right font-medium text-gray-500 pb-2 px-3">DCR</th>
+                        <th className="text-right font-medium text-gray-500 pb-2 px-3">Capture Ratio</th>
+                        <th className="text-right font-medium text-gray-500 pb-2 px-3">Up Months</th>
+                        <th className="text-right font-medium text-gray-500 pb-2 pl-3">Down Months</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {captureStats.map(({ fund, color, freefincal }) => (
+                        <tr key={fund.scheme_code} className="hover:bg-gray-50 transition-colors">
+                          <td className="py-3 pr-4">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                              <span className="font-medium text-gray-800 truncate" title={fund.scheme_name}>
+                                {shortName(fund.scheme_name)}
+                              </span>
+                            </div>
+                          </td>
+                          {/* UCR: >100 = captured more up (emerald), <100 = amber */}
+                          <td className="py-3 px-3 text-right">
+                            {!freefincal || isNaN(freefincal.ucr) ? (
+                              <span className="text-gray-400">N/A</span>
+                            ) : (
+                              <span className={`font-semibold ${freefincal.ucr >= 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                {freefincal.ucr.toFixed(1)}
+                              </span>
+                            )}
+                          </td>
+                          {/* DCR: <100 = protected in downturns (emerald), >100 = rose */}
+                          <td className="py-3 px-3 text-right">
+                            {!freefincal || isNaN(freefincal.dcr) ? (
+                              <span className="text-gray-400">N/A</span>
+                            ) : (
+                              <span className={`font-semibold ${freefincal.dcr <= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {freefincal.dcr.toFixed(1)}
+                              </span>
+                            )}
+                          </td>
+                          {/* Capture Ratio: >1 = ideal (emerald), <1 = rose */}
+                          <td className="py-3 px-3 text-right">
+                            {!freefincal || isNaN(freefincal.captureRatio) ? (
+                              <span className="text-gray-400">N/A</span>
+                            ) : (
+                              <span className={`font-semibold ${freefincal.captureRatio >= 1 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {freefincal.captureRatio.toFixed(2)}x
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right font-semibold text-blue-600">
+                            {freefincal ? freefincal.upMonths : <span className="text-gray-400">—</span>}
+                          </td>
+                          <td className="py-3 pl-3 text-right font-semibold text-rose-600">
+                            {freefincal ? freefincal.downMonths : <span className="text-gray-400">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="text-xs text-gray-400 mt-2 space-y-0.5">
+                  <p>
+                    <span className="font-medium">Methodology:</span> Filter non-overlapping monthly returns to up-benchmark months (benchmark &gt; 0) and down-benchmark months (benchmark &lt; 0).
+                    Compute annualised CAGR from each filtered set using the product formula: CAGR = [∏(1+rᵢ)]^(12/n) − 1.
+                    UCR = upCAGR_fund / upCAGR_bench × 100. DCR = downCAGR_fund / downCAGR_bench × 100. Capture Ratio = UCR / DCR.
+                  </p>
+                  <p>
+                    Based on full available monthly return history from the selected start date.{' '}
+                    <span className="font-medium">Window-independent</span> — same monthly series regardless of active rolling window tab.
+                  </p>
+                  <p className="text-gray-300">
+                    This matches the Freefincal capture ratio methodology. Compare with the arithmetic-mean UCR/DCR table above which uses overlapping rolling-return observations.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── Section 6b: Per-fund scatter + alpha charts ───────────────── */}

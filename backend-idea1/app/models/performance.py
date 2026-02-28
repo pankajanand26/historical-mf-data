@@ -67,12 +67,21 @@ class BenchmarkWindowResult(BaseModel):
     data_points: int
 
 
+class MonthlyReturnPoint(BaseModel):
+    date: str           # "YYYY-MM-DD" (month-end date)
+    value: float        # decimal return, e.g. 0.0312 means +3.12%
+
+
 class RollingReturnResponse(BaseModel):
     benchmark_code: int
     benchmark_name: str
     funds: list[FundResult]
     benchmark_windows: list[BenchmarkWindowResult]
     risk_free_rate: float   # annual risk-free rate used for Sharpe / Sortino (e.g. 0.065)
+    # Non-overlapping monthly returns for Freefincal-style CAGR capture ratio calculation.
+    # Keys: "benchmark" and "fund_<scheme_code>" for each requested fund.
+    # Values are decimal returns (NOT multiplied by 100).
+    monthly_returns: dict[str, list[MonthlyReturnPoint]] = {}
 
 
 # ── Fund Analytics (max drawdown + recovery) ─────────────────────────────────

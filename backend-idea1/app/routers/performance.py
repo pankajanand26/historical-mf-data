@@ -4,6 +4,7 @@ from app.models.performance import (
     RollingReturnRequest,
     RollingReturnResponse,
     RollingReturnPoint,
+    MonthlyReturnPoint,
     FundResult,
     FundWindowResult,
     BenchmarkWindowResult,
@@ -15,6 +16,8 @@ from app.models.performance import (
 from app.services.rolling_returns import (
     load_nav_series,
     compute_rolling_returns,
+    compute_monthly_returns,
+    monthly_returns_to_point_list,
     series_to_points,
     downsample_shared,
     series_to_point_list,
@@ -138,12 +141,32 @@ def get_rolling_returns(request: RollingReturnRequest):
             )
         )
 
+    # ── Freefincal-style monthly returns ────────────────────────────────────────
+    # Compute non-overlapping monthly returns for benchmark and each fund.
+    # These are used by the frontend to compute CAGR-based UCR/DCR capture ratios
+    # following Freefincal's methodology.
+    # We load fresh NAV series without the rolling-window look-back buffer so the
+    # monthly series starts at start_date (not start_date - max_window_days).
+    bench_monthly_nav = load_nav_series(request.benchmark_code, request.start_date, request.end_date)
+    monthly_returns_map: dict[str, list[MonthlyReturnPoint]] = {}
+    bench_monthly = compute_monthly_returns(bench_monthly_nav, request.start_date)
+    monthly_returns_map["benchmark"] = [
+        MonthlyReturnPoint(**p) for p in monthly_returns_to_point_list(bench_monthly)
+    ]
+    for sc in request.scheme_codes:
+        fund_monthly_nav = load_nav_series(sc, request.start_date, request.end_date)
+        fund_monthly = compute_monthly_returns(fund_monthly_nav, request.start_date)
+        monthly_returns_map[f"fund_{sc}"] = [
+            MonthlyReturnPoint(**p) for p in monthly_returns_to_point_list(fund_monthly)
+        ]
+
     return RollingReturnResponse(
         benchmark_code=request.benchmark_code,
         benchmark_name=benchmark_name,
         funds=fund_results,
         benchmark_windows=benchmark_windows,
         risk_free_rate=RISK_FREE_RATE,
+        monthly_returns=monthly_returns_map,
     )
 
 
