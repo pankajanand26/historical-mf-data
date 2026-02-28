@@ -13,6 +13,7 @@ const Icon = ({ d, className = 'w-4 h-4' }) => (
 const CLOSE = 'M6 18L18 6M6 6l12 12';
 const CHEVRON = 'M19 9l-7 7-7-7';
 const SEARCH = 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0';
+const DOWNLOAD = 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4';
 
 // ── Popover wrapper ────────────────────────────────────────────────────────────
 const Popover = ({ trigger, children, align = 'left' }) => {
@@ -197,12 +198,162 @@ const DatePopover = ({ datePreset, startDate, endDate, onPreset, onStart, onEnd 
   </Popover>
 );
 
+// ── Risk-free rate inline input ────────────────────────────────────────────────
+const RfRateInput = ({ rfRate, onChange }) => {
+  const [editing, setEditing] = useState(false);
+  const [temp, setTemp] = useState((rfRate * 100).toFixed(1));
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) inputRef.current.select();
+  }, [editing]);
+
+  const handleSubmit = () => {
+    const val = parseFloat(temp);
+    if (!isNaN(val) && val >= 0 && val <= 20) {
+      onChange(val / 100);
+    }
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] text-terminal-muted uppercase tracking-widest">RF</span>
+        <input
+          ref={inputRef}
+          type="number"
+          step="0.1"
+          min="0"
+          max="20"
+          value={temp}
+          onChange={(e) => setTemp(e.target.value)}
+          onBlur={handleSubmit}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); if (e.key === 'Escape') setEditing(false); }}
+          className="w-12 px-1.5 py-1 text-xs bg-terminal-bg border border-terminal-amber rounded text-terminal-amber text-center outline-none"
+        />
+        <span className="text-[10px] text-terminal-muted">%</span>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => { setTemp((rfRate * 100).toFixed(1)); setEditing(true); }}
+      className="flex items-center gap-1 px-2 py-1 bg-terminal-surface border border-terminal-border rounded text-xs hover:border-terminal-amber transition-colors"
+      title="Risk-free rate for Sharpe/Sortino calculations"
+    >
+      <span className="text-terminal-muted">RF</span>
+      <span className="text-terminal-amber font-semibold">{(rfRate * 100).toFixed(1)}%</span>
+    </button>
+  );
+};
+
+// ── Export dropdown ────────────────────────────────────────────────────────────
+const ExportButton = ({ data, analyticsData, activeSection }) => {
+  const exportCSV = () => {
+    if (!data) return;
+    let csv = '';
+    const funds = data.funds ?? [];
+    const benchWin = data.benchmark_windows?.[0];
+    
+    if (activeSection === 'returns' && benchWin) {
+      // Export rolling returns data
+      csv = 'Date,Benchmark,' + funds.map(f => f.scheme_name.replace(/,/g, '')).join(',') + '\n';
+      const map = new Map();
+      for (const pt of benchWin.data) {
+        map.set(pt.date, { date: pt.date, benchmark: pt.value });
+      }
+      for (const fund of funds) {
+        const fWin = fund.windows?.find(w => w.window === benchWin.window);
+        if (fWin) {
+          for (const pt of fWin.data) {
+            const row = map.get(pt.date) ?? { date: pt.date };
+            row[`fund_${fund.scheme_code}`] = pt.value;
+            map.set(pt.date, row);
+          }
+        }
+      }
+      const rows = Array.from(map.values()).sort((a, b) => a.date < b.date ? -1 : 1);
+      for (const row of rows) {
+        csv += `${row.date},${row.benchmark ?? ''},${funds.map(f => row[`fund_${f.scheme_code}`] ?? '').join(',')}\n`;
+      }
+    } else if (activeSection === 'drawdown' && analyticsData) {
+      // Export drawdown data
+      csv = 'Fund,Max Drawdown %,Peak Date,Trough Date,Duration Days,Recovery Date,Recovery Days\n';
+      if (analyticsData.benchmark_drawdown) {
+        const bd = analyticsData.benchmark_drawdown;
+        csv += `${analyticsData.benchmark_name.replace(/,/g, '')},${bd.max_drawdown ?? ''},${bd.peak_date ?? ''},${bd.trough_date ?? ''},${bd.drawdown_duration_days ?? ''},${bd.recovery_date ?? ''},${bd.recovery_days ?? ''}\n`;
+      }
+      for (const f of analyticsData.funds ?? []) {
+        const dd = f.drawdown;
+        csv += `${f.scheme_name.replace(/,/g, '')},${dd.max_drawdown ?? ''},${dd.peak_date ?? ''},${dd.trough_date ?? ''},${dd.drawdown_duration_days ?? ''},${dd.recovery_date ?? ''},${dd.recovery_days ?? ''}\n`;
+      }
+    } else {
+      // Generic export for other tabs
+      csv = 'Section,Note\n';
+      csv += `${activeSection},Export available for Returns and Drawdown tabs\n`;
+    }
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mfterm_${activeSection}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportJSON = () => {
+    const exportData = { rolling_returns: data, fund_analytics: analyticsData, exported_at: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mfterm_full_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (!data) return null;
+
+  return (
+    <Popover
+      trigger={
+        <button className="flex items-center gap-1 px-2 py-1.5 bg-terminal-surface border border-terminal-border rounded text-xs text-terminal-muted hover:border-terminal-green hover:text-terminal-green transition-colors">
+          <Icon d={DOWNLOAD} className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">EXPORT</span>
+        </button>
+      }
+      align="right"
+    >
+      <div className="p-2 w-44">
+        <button
+          data-close
+          onClick={exportCSV}
+          className="w-full text-left px-3 py-2 text-xs text-terminal-text hover:bg-terminal-bg hover:text-terminal-green rounded transition-colors"
+        >
+          Active Tab (CSV)
+        </button>
+        <button
+          data-close
+          onClick={exportJSON}
+          className="w-full text-left px-3 py-2 text-xs text-terminal-text hover:bg-terminal-bg hover:text-terminal-green rounded transition-colors"
+        >
+          Full Data (JSON)
+        </button>
+      </div>
+    </Popover>
+  );
+};
+
 // ── Main header ────────────────────────────────────────────────────────────────
 const TerminalHeader = ({
   selectedFunds, selectedBenchmark, windows, datePreset, startDate, endDate,
-  canAnalyze, loading,
+  canAnalyze, loading, rfRate, onRfRateChange,
   onFundAdd, onFundRemove, onBenchmarkSelect, onWindowsChange,
   onDatePresetChange, onStartDateChange, onEndDateChange, onAnalyze,
+  data, analyticsData, activeSection,
 }) => (
   <header className="sticky top-0 z-40 bg-terminal-surface border-b border-terminal-border flex items-center gap-3 px-4 py-2 flex-wrap">
     {/* Brand */}
@@ -212,7 +363,11 @@ const TerminalHeader = ({
     <FundPopover selectedFunds={selectedFunds} onAdd={onFundAdd} onRemove={onFundRemove} />
     <BenchmarkPopover selectedBenchmark={selectedBenchmark} onSelect={onBenchmarkSelect} />
     <WindowsToggle windows={windows} onChange={onWindowsChange} />
+    <RfRateInput rfRate={rfRate} onChange={onRfRateChange} />
     <DatePopover datePreset={datePreset} startDate={startDate} endDate={endDate} onPreset={onDatePresetChange} onStart={onStartDateChange} onEnd={onEndDateChange} />
+
+    {/* Export */}
+    <ExportButton data={data} analyticsData={analyticsData} activeSection={activeSection} />
 
     {/* Run */}
     <button

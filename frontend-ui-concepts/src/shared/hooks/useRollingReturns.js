@@ -14,7 +14,17 @@ export function useRollingReturns() {
         ...(startDate && { start_date: startDate }),
         ...(endDate && { end_date: endDate }),
       };
-      setData(await fetchRollingReturns(payload));
+      const raw = await fetchRollingReturns(payload);
+      // Normalize API shape: API returns `benchmark_windows` at top level,
+      // but all chart components expect `data.benchmark.windows`.
+      setData({
+        ...raw,
+        benchmark: {
+          scheme_code: raw.benchmark_code,
+          scheme_name: raw.benchmark_name,
+          windows: raw.benchmark_windows ?? [],
+        },
+      });
     } catch (err) {
       const detail = err?.response?.data?.detail;
       setError(Array.isArray(detail) ? detail.map((d) => d.msg).join('; ')

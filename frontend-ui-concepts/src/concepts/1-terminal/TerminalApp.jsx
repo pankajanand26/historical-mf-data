@@ -13,6 +13,7 @@ const TerminalApp = () => {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [activeSection, setActiveSection] = useState('returns');
+  const [rfRate, setRfRate] = useState(0.065); // 6.5% default risk-free rate
 
   const { data, loading, error, fetch: fetchReturns, reset } = useRollingReturns();
   const { data: analyticsData, loading: analyticsLoading, fetch: fetchAnalytics, reset: resetAnalytics } = useFundAnalytics();
@@ -55,6 +56,8 @@ const TerminalApp = () => {
         endDate={endDate}
         canAnalyze={canAnalyze}
         loading={loading}
+        rfRate={rfRate}
+        onRfRateChange={setRfRate}
         onFundAdd={handleFundAdd}
         onFundRemove={handleFundRemove}
         onBenchmarkSelect={handleBenchmarkSelect}
@@ -63,6 +66,9 @@ const TerminalApp = () => {
         onStartDateChange={setStartDate}
         onEndDateChange={setEndDate}
         onAnalyze={handleAnalyze}
+        data={data}
+        analyticsData={analyticsData}
+        activeSection={activeSection}
       />
 
       {/* Chart + section tabs */}
@@ -76,6 +82,7 @@ const TerminalApp = () => {
           activeSection={activeSection}
           onSectionChange={setActiveSection}
           hasData={!!data}
+          rfRate={rfRate}
         />
       </div>
     </div>
