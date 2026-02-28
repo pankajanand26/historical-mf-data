@@ -777,7 +777,7 @@ A fund's UCR for the 3Y window tells you about the specific 3Y rolling periods i
 
 ### Risk-free rate
 
-The risk-free rate is fixed at **6.5% p.a.** (configurable in `backend-idea1/app/config.py`). This broadly reflects Indian government bond yields. Sharpe and Sortino ratios are sensitive to this choice — a higher $r_f$ makes both ratios smaller.
+The risk-free rate is fixed at **6.5% p.a.** (configurable in `backend/app/config.py`). This broadly reflects Indian government bond yields. Sharpe and Sortino ratios are sensitive to this choice — a higher $r_f$ makes both ratios smaller.
 
 ### Monthly returns and date coverage
 
@@ -793,4 +793,4 @@ The Sharpe and Sortino ratios in this app are computed on rolling-return observa
 
 ---
 
-*This document is auto-generated from code inspection of `frontend-idea1/src/components/charts/RollingReturnChart.jsx`, `frontend-ui-concepts/src/shared/utils/chartUtils.js`, `backend-idea1/app/services/rolling_returns.py`, and `backend-idea1/app/services/analytics.py`. If metrics are added or changed in the codebase, update this document accordingly.*
+*This document is auto-generated from code inspection of `frontend/src/components/charts/RollingReturnChart.jsx`, `frontend-ui-concepts/src/shared/utils/chartUtils.js`, `backend/app/services/rolling_returns.py`, and `backend/app/services/analytics.py`. If metrics are added or changed in the codebase, update this document accordingly.*

@@ -1,9 +1,7 @@
-const Layout = ({ children }) => {
-  return (
-    <div className="min-h-screen bg-gray-100">
-      {children}
-    </div>
-  );
-};
+const Layout = ({ children }) => (
+  <div className="min-h-screen bg-gray-50">
+    {children}
+  </div>
+);
 
 export default Layout;

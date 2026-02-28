@@ -1,263 +1,214 @@
 import { useState, useCallback } from 'react';
 import Layout from './components/layout/Layout';
-import Header from './components/layout/Header';
-import AMCSelector from './components/filters/AMCSelector';
-import AMCComparisonTable from './components/tables/AMCComparisonTable';
-import CumulativeReturnChart from './components/charts/CumulativeReturnChart';
-import ExpenseDragChart from './components/charts/ExpenseDragChart';
-import { useAMCData } from './hooks/useAMCData';
-import { useMetrics } from './hooks/useMetrics';
-import { useExpenseDrag } from './hooks/useExpenseDrag';
+import FundSearchBar from './components/search/FundSearchBar';
+import BenchmarkPicker from './components/benchmark/BenchmarkPicker';
+import WindowSelector from './components/controls/WindowSelector';
+import DateRangePicker from './components/controls/DateRangePicker';
+import RfRateInput from './components/controls/RfRateInput';
+import RollingReturnChart from './components/charts/RollingReturnChart';
+import { TabNav, ExportButton, KpiStrip } from './components/ui';
+import { useRollingReturns } from './hooks/useRollingReturns';
+import { useFundAnalytics } from './hooks/useFundAnalytics';
+import { DEFAULT_RF_RATE } from './utils/constants';
+
+const getDateRange = (preset, startDate, endDate) => {
+  if (preset === 'custom') return { startDate, endDate };
+  if (preset === 'all') return { startDate: null, endDate: null };
+  const years = parseInt(preset);
+  if (!isNaN(years)) {
+    const end = new Date();
+    const start = new Date(end);
+    start.setFullYear(start.getFullYear() - years);
+    return {
+      startDate: start.toISOString().split('T')[0],
+      endDate: end.toISOString().split('T')[0],
+    };
+  }
+  return { startDate: null, endDate: null };
+};
 
 const App = () => {
-  const { amcs, categories, loading: amcLoading, error: amcError } = useAMCData();
-  const { metrics, cumulativeReturns, benchmarkUsed, loading: metricsLoading, error: metricsError, fetchMetrics } = useMetrics();
-  const { expenseDragData, loading: expenseLoading, error: expenseError, fetchExpenseDrag } = useExpenseDrag();
-
-  const [selectedAmcs, setSelectedAmcs] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [datePreset, setDatePreset] = useState('3y');
+  const [selectedFunds, setSelectedFunds] = useState([]);   // [{ scheme_code, scheme_name }]
+  const [selectedBenchmark, setSelectedBenchmark] = useState(null);
+  const [windows, setWindows] = useState(['3y']);
+  const [datePreset, setDatePreset] = useState('all');
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
-  const [planType, setPlanType] = useState(null);
-  const [sortBy, setSortBy] = useState('sharpe_ratio');
-  const [sortOrder, setSortOrder] = useState('desc');
-  const [activeTab, setActiveTab] = useState('comparison');
-  const [selectedAmcForExpense, setSelectedAmcForExpense] = useState(null);
+  const [activeTab, setActiveTab] = useState('returns');
+  const [rfRate, setRfRate] = useState(DEFAULT_RF_RATE);
+  const [activeWindow, setActiveWindow] = useState('3y'); // Global window for all tabs
 
-  const getDateRange = useCallback(() => {
-    const now = new Date();
-    let start = null;
+  const { data, loading, error, fetch: fetchReturns, reset } = useRollingReturns();
+  const { data: analyticsData, loading: analyticsLoading, fetch: fetchAnalytics, reset: resetAnalytics } = useFundAnalytics();
 
-    switch (datePreset) {
-      case '1y':
-        start = new Date(now.setFullYear(now.getFullYear() - 1));
-        break;
-      case '3y':
-        start = new Date(now.setFullYear(now.getFullYear() - 3));
-        break;
-      case '5y':
-        start = new Date(now.setFullYear(now.getFullYear() - 5));
-        break;
-      case 'all':
-        return { startDate: null, endDate: null };
-      case 'custom':
-        return { startDate, endDate };
-      default:
-        start = new Date(now.setFullYear(now.getFullYear() - 3));
-    }
-
-    return {
-      startDate: start ? start.toISOString().split('T')[0] : null,
-      endDate: new Date().toISOString().split('T')[0],
-    };
-  }, [datePreset, startDate, endDate]);
+  const canAnalyze = selectedFunds.length > 0 && selectedBenchmark && windows.length > 0 && !loading;
 
   const handleAnalyze = useCallback(() => {
-    const dateRange = getDateRange();
-    fetchMetrics({
-      amcs: selectedAmcs,
-      start_date: dateRange.startDate,
-      end_date: dateRange.endDate,
-      category: selectedCategory,
-      plan_type: planType,
+    if (!canAnalyze) return;
+    const { startDate: sd, endDate: ed } = getDateRange(datePreset, startDate, endDate);
+    const params = {
+      schemeCodes: selectedFunds.map((f) => f.scheme_code),
+      benchmarkCode: selectedBenchmark.scheme_code,
+      startDate: sd,
+      endDate: ed,
+    };
+    fetchReturns({ ...params, windows });
+    fetchAnalytics(params);
+  }, [canAnalyze, selectedFunds, selectedBenchmark, windows, datePreset, startDate, endDate, fetchReturns, fetchAnalytics]);
+
+  const handleFundAdd = useCallback((fund) => {
+    setSelectedFunds((prev) => {
+      if (prev.some((f) => f.scheme_code === fund.scheme_code)) return prev;
+      if (prev.length >= 5) return prev;
+      return [...prev, fund];
     });
-  }, [selectedAmcs, selectedCategory, planType, getDateRange, fetchMetrics]);
+    reset();
+    resetAnalytics();
+  }, [reset, resetAnalytics]);
 
-  const handleSort = useCallback((key) => {
-    if (sortBy === key) {
-      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortBy(key);
-      setSortOrder('desc');
-    }
-  }, [sortBy]);
+  const handleFundRemove = useCallback((schemeCode) => {
+    setSelectedFunds((prev) => prev.filter((f) => f.scheme_code !== schemeCode));
+    reset();
+    resetAnalytics();
+  }, [reset, resetAnalytics]);
 
-  const sortedMetrics = [...metrics].sort((a, b) => {
-    const aVal = a[sortBy] ?? -Infinity;
-    const bVal = b[sortBy] ?? -Infinity;
-    return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
-  });
-
-  const handleExpenseAnalysis = useCallback((amcName) => {
-    setSelectedAmcForExpense(amcName);
-    fetchExpenseDrag(amcName);
-  }, [fetchExpenseDrag]);
-
-  if (amcLoading) {
-    return (
-      <Layout>
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-500">Loading AMC data...</p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
-
-  if (amcError) {
-    return (
-      <Layout>
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-          <div className="bg-red-50 text-red-700 p-4 rounded-lg">
-            Error: {amcError}
-          </div>
-        </div>
-      </Layout>
-    );
-  }
+  const handleBenchmarkSelect = (b) => {
+    setSelectedBenchmark(b);
+    reset();
+    resetAnalytics();
+  };
 
   return (
     <Layout>
-      <Header />
-      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-1">
-            <AMCSelector
-              amcs={amcs}
-              selectedAmcs={selectedAmcs}
-              onAmcChange={setSelectedAmcs}
-              categories={categories}
-              selectedCategory={selectedCategory}
-              onCategoryChange={setSelectedCategory}
-              datePreset={datePreset}
-              onDatePresetChange={setDatePreset}
-              startDate={startDate}
-              endDate={endDate}
-              onStartDateChange={setStartDate}
-              onEndDateChange={setEndDate}
-              planType={planType}
-              onPlanTypeChange={setPlanType}
-              onAnalyze={handleAnalyze}
-              loading={metricsLoading}
-            />
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Performance Attribution & Benchmarking</h1>
+            <p className="text-sm text-gray-500">Rolling return analysis · Indian mutual funds · AMFI data</p>
           </div>
+          <div className="flex items-center gap-3">
+            <ExportButton data={data} analyticsData={analyticsData} activeTab={activeTab} />
+            <span className="hidden sm:inline text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Idea 1</span>
+          </div>
+        </div>
+      </header>
 
-          <div className="lg:col-span-3 space-y-6">
-            <div className="flex gap-4 border-b border-gray-200">
+      {/* KPI Strip - below header, above main content */}
+      {data && !loading && (
+        <KpiStrip
+          data={data}
+          analyticsData={analyticsData}
+          rfRate={rfRate}
+          activeWindow={activeWindow}
+          setActiveWindow={setActiveWindow}
+        />
+      )}
+
+      <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+          {/* ---- Left panel: controls ---- */}
+          <aside className="lg:col-span-1 space-y-5">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-5">
+              <FundSearchBar
+                selectedFunds={selectedFunds}
+                onAdd={handleFundAdd}
+                onRemove={handleFundRemove}
+                placeholder="e.g. HDFC Flexi Cap..."
+              />
+
+              <BenchmarkPicker
+                selectedBenchmark={selectedBenchmark}
+                onSelect={handleBenchmarkSelect}
+              />
+
+              <WindowSelector selected={windows} onChange={setWindows} />
+
+              <DateRangePicker
+                preset={datePreset}
+                onPresetChange={setDatePreset}
+                startDate={startDate}
+                endDate={endDate}
+                onStartDateChange={setStartDate}
+                onEndDateChange={setEndDate}
+              />
+
+              <RfRateInput value={rfRate} onChange={setRfRate} />
+
               <button
-                onClick={() => setActiveTab('comparison')}
-                className={`px-4 py-2 font-medium ${
-                  activeTab === 'comparison'
-                    ? 'text-blue-600 border-b-2 border-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
+                onClick={handleAnalyze}
+                disabled={!canAnalyze}
+                className={`w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors ${
+                  canAnalyze
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 }`}
               >
-                Performance Comparison
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Calculating...
+                  </span>
+                ) : (
+                  'Analyze'
+                )}
               </button>
-              <button
-                onClick={() => setActiveTab('expense')}
-                className={`px-4 py-2 font-medium ${
-                  activeTab === 'expense'
-                    ? 'text-blue-600 border-b-2 border-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                Expense Drag Analysis
-              </button>
+
+              {selectedFunds.length === 0 && (
+                <p className="text-xs text-gray-400 text-center">Search and select funds to begin</p>
+              )}
+              {selectedFunds.length > 0 && !selectedBenchmark && (
+                <p className="text-xs text-gray-400 text-center">Now pick a benchmark index fund</p>
+              )}
             </div>
+          </aside>
 
-            {metricsError && (
-              <div className="bg-red-50 text-red-700 p-4 rounded-lg">
-                Error: {metricsError}
+          {/* ---- Right panel: chart ---- */}
+          <section className="lg:col-span-3 space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+                <span className="font-medium">Error: </span>{error}
               </div>
             )}
 
-            {activeTab === 'comparison' && (
-              <>
-                {benchmarkUsed && (
-                  <div className="bg-blue-50 text-blue-700 p-3 rounded-lg text-sm">
-                    Benchmark: {benchmarkUsed}
-                  </div>
-                )}
-
-                <AMCComparisonTable
-                  metrics={sortedMetrics}
-                  onSort={handleSort}
-                  sortBy={sortBy}
-                  sortOrder={sortOrder}
-                />
-
-                {metrics.length > 0 && (
-                  <div className="mt-6">
-                    <CumulativeReturnChart cumulativeReturns={cumulativeReturns} />
-                  </div>
-                )}
-
-                {metrics.length > 0 && (
-                  <div className="mt-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">
-                      Expense Drag Analysis
-                    </h3>
-                    <p className="text-sm text-gray-500 mb-4">
-                      Select an AMC to view Direct vs Regular plan expense drag:
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {metrics.map((m) => (
-                        <button
-                          key={m.amc_name}
-                          onClick={() => handleExpenseAnalysis(m.amc_name)}
-                          className={`px-3 py-1 rounded text-sm ${
-                            selectedAmcForExpense === m.amc_name
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          {m.amc_name.replace(' Mutual Fund', '')}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {activeTab === 'expense' && (
-              <>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">
-                    Select AMC for Expense Drag Analysis
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedAmcs.map((amc) => (
-                      <button
-                        key={amc}
-                        onClick={() => handleExpenseAnalysis(amc)}
-                        className={`px-3 py-1 rounded text-sm ${
-                          selectedAmcForExpense === amc
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {amc.replace(' Mutual Fund', '')}
-                      </button>
-                    ))}
-                  </div>
+            {!data && !loading && !error && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center h-80 text-center px-6">
+                <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                  <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
                 </div>
+                <p className="text-gray-500 text-sm">
+                  Select funds, choose a benchmark, pick your rolling windows and click <strong>Analyze</strong>.
+                </p>
+              </div>
+            )}
 
-                {expenseError && (
-                  <div className="bg-red-50 text-red-700 p-4 rounded-lg">
-                    Error: {expenseError}
-                  </div>
-                )}
+            {loading && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center h-80">
+                <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-gray-500 text-sm">Computing rolling returns...</p>
+                <p className="text-gray-400 text-xs mt-1">This may take a few seconds for long date ranges</p>
+              </div>
+            )}
 
-                {expenseLoading && (
-                  <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-500">Analyzing expense drag...</p>
-                  </div>
-                )}
-
-                {expenseDragData && !expenseLoading && (
-                  <ExpenseDragChart expenseDragData={expenseDragData} />
-                )}
+            {data && !loading && (
+              <>
+                <TabNav activeTab={activeTab} setActiveTab={setActiveTab} />
+                <RollingReturnChart
+                  data={data}
+                  analyticsData={analyticsData}
+                  analyticsLoading={analyticsLoading}
+                  activeTab={activeTab}
+                  rfRate={rfRate}
+                  activeWindow={activeWindow}
+                  setActiveWindow={setActiveWindow}
+                />
               </>
             )}
-          </div>
+          </section>
         </div>
       </main>
     </Layout>

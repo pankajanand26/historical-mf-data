@@ -15,17 +15,15 @@
 3. [Directory Structure](#3-directory-structure)
 4. [Data Pipeline](#4-data-pipeline)
 5. [Database Schema](#5-database-schema)
-6. [Backend — Generation 2 (AMC Track Record API)](#6-backend--generation-2-amc-track-record-api)
-7. [Backend — Generation 3 (Performance Attribution API)](#7-backend--generation-3-performance-attribution-api)
-8. [Frontend — Generation 2 (AMC Analysis UI)](#8-frontend--generation-2-amc-analysis-ui)
-9. [Frontend — Generation 3 (Performance Attribution UI)](#9-frontend--generation-3-performance-attribution-ui)
-10. [UI Concepts Prototype](#10-ui-concepts-prototype)
-11. [CI/CD Pipeline](#11-cicd-pipeline)
-12. [Configuration & Environment Variables](#12-configuration--environment-variables)
-13. [Dependencies](#13-dependencies)
-14. [Metrics & Formulas Reference](#14-metrics--formulas-reference)
-15. [End-to-End Data Flow](#15-end-to-end-data-flow)
-16. [Development Setup](#16-development-setup)
+6. [Backend (Performance Attribution API)](#6-backend--generation-2-amc-track-record-api)
+7. [Frontend (Performance Attribution UI)](#7-backend--generation-3-performance-attribution-api)
+8. [UI Concepts Prototype](#10-ui-concepts-prototype)
+9. [CI/CD Pipeline](#11-cicd-pipeline)
+10. [Configuration & Environment Variables](#12-configuration--environment-variables)
+11. [Dependencies](#13-dependencies)
+12. [Metrics & Formulas Reference](#14-metrics--formulas-reference)
+13. [End-to-End Data Flow](#15-end-to-end-data-flow)
+14. [Development Setup](#16-development-setup)
 
 ---
 
@@ -38,13 +36,13 @@ This platform is a multi-layer application for analysing historical NAV (Net Ass
 - Quantify expense drag between Direct and Regular plan variants
 - Measure market capture, drawdown, and performance attribution statistics
 
-The codebase contains **three generations** of the same core idea, each increasing in analytical sophistication:
+The codebase has evolved through three generations, with Gen 3 now the primary active system:
 
-| Generation | Backend | Frontend | Focus |
-|---|---|---|---|
-| Gen 1 | Python data pipeline | — | Raw data ingestion only |
-| Gen 2 | `backend/` (port 8000) | `frontend/` (port 3000) | AMC-level track record comparison |
-| Gen 3 | `backend-idea1/` (port 8001) | `frontend-idea1/` | Fund-level rolling return & performance attribution |
+| Generation | Backend | Frontend | Focus | Status |
+|---|---|---|---|---|
+| Gen 1 | Python data pipeline | — | Raw data ingestion only | Active (data pipeline) |
+| Gen 2 | *(removed)* | *(removed)* | AMC-level track record comparison | Removed |
+| Gen 3 | `backend/` (port 8001) | `frontend/` | Fund-level rolling return & performance attribution | **Active** |
 
 ---
 
@@ -62,13 +60,9 @@ graph TD
 
     DB[("🗄️ funds.db\nSQLite Database\n~42M rows · ~8,200 schemes\nscheme_data · nav_data · isin_data")]
 
-    BE2["🔧 backend/\nFastAPI  :8000\nGen 2 — AMC Analytics\nSharpe · Sortino · Calmar · Beta · Alpha"]
+    BE3["🔧 backend/\nFastAPI  :8001\nPerformance Attribution API\nRolling Returns · Drawdown · Capture Ratios"]
 
-    BE3["🔧 backend-idea1/\nFastAPI  :8001\nGen 3 — Performance Attribution\nRolling Returns · Drawdown · Capture Ratios"]
-
-    FE2["🖥️ frontend/\nReact  :3000\nAMC Track Record Comparison\nChart.js · react-select · TailwindCSS"]
-
-    FE3["🖥️ frontend-idea1/\nReact  :5173\nFund vs Benchmark Analysis\nRecharts · TailwindCSS"]
+    FE3["🖥️ frontend/\nReact  :5173\nFund vs Benchmark Analysis\nRecharts · TailwindCSS"]
 
     CONCEPTS["🎨 frontend-ui-concepts/\nDesign Prototypes\nTerminal & Editorial concepts"]
 
@@ -81,17 +75,14 @@ graph TD
     GHA -->|"orchestrates"| FETCH
     GHA -->|"commits CSV + publishes funds.db.tar.gz"| DB
 
-    DB -->|"SQLite queries"| BE2
     DB -->|"SQLite queries"| BE3
 
-    BE2 -->|"REST API"| FE2
     BE3 -->|"REST API"| FE3
     BE3 -.->|"shared API"| CONCEPTS
 
     style DB fill:#f0f4ff,stroke:#4a6cf7
     style AMFI fill:#fff3e0,stroke:#f57c00
     style GHA fill:#e8f5e9,stroke:#388e3c
-    style FE2 fill:#fce4ec,stroke:#c2185b
     style FE3 fill:#fce4ec,stroke:#c2185b
     style CONCEPTS fill:#f3e5f5,stroke:#7b1fa2
 ```
@@ -120,26 +111,32 @@ historical-mf-data/
 ├── docs/
 │   └── analysis_ideas.md             # 10 analysis ideas for finance professionals
 │
-├── backend/                           # Gen 2: AMC Track Record API (port 8000)
+├── backend/                           # Performance Attribution API (port 8001)
 │   ├── requirements.txt
 │   └── app/
 │       ├── main.py
 │       ├── config.py
 │       ├── database.py
 │       ├── models/
-│       │   ├── amc.py
-│       │   └── metrics.py
+│       │   └── performance.py
 │       ├── routers/
-│       │   ├── amc.py
-│       │   ├── analysis.py
-│       │   └── expense.py
+│       │   ├── schemes.py
+│       │   └── performance.py
 │       └── services/
-│           ├── amc_parser.py
-│           ├── returns.py
-│           ├── metrics.py
-│           └── expense_drag.py
+│           ├── rolling_returns.py
+│           ├── analytics.py
+│           └── benchmarking.py
 │
-├── backend-idea1/                     # Gen 3: Performance Attribution API (port 8001)
+├── frontend/                          # Performance Attribution UI (port 5173)
+│   ├── package.json
+│   ├── vite.config.js
+│   └── src/
+│       ├── App.jsx
+│       ├── components/
+│       ├── hooks/
+│       └── services/
+│
+├── backend/                     # Gen 3: Performance Attribution API (port 8001)
 │   ├── requirements.txt
 │   └── app/
 │       ├── main.py
@@ -165,7 +162,7 @@ historical-mf-data/
 │       ├── services/
 │       └── utils/
 │
-├── frontend-idea1/                    # Gen 3: Performance Attribution UI
+├── frontend/                    # Gen 3: Performance Attribution UI
 │   ├── package.json
 │   ├── vite.config.js
 │   └── src/
@@ -369,9 +366,11 @@ erDiagram
 
 ---
 
-## 6. Backend — Generation 2 (AMC Track Record API)
+## 6. Backend — Generation 2 (AMC Track Record API) *(Removed)*
 
-**Location**: `backend/`  
+> **This generation has been removed.** The `backend/` folder now contains the Generation 3 Performance Attribution API (see Section 7). The documentation below is kept for historical reference only.
+
+**Location**: *(removed)*  
 **Framework**: FastAPI (Python)  
 **Port**: 8000  
 **Database env var**: `DATABASE_PATH` (default: `../../funds.db`)
@@ -564,20 +563,20 @@ Extracts AMC names from scheme names using 49 regex patterns matching known Indi
 
 ---
 
-## 7. Backend — Generation 3 (Performance Attribution API)
+## 7. Backend (Performance Attribution API)
 
-**Location**: `backend-idea1/`  
+**Location**: `backend/`  
 **Framework**: FastAPI (Python)  
 **Port**: 8001  
 **Database env var**: `DB_PATH` (default: `../funds.db`)
 
-### 7.1 Application Entry Point — `backend-idea1/app/main.py`
+### 7.1 Application Entry Point — `backend/app/main.py`
 
 - Instantiates `FastAPI` with title "Historical MF Data API"
 - Configures CORS: all origins, credentials, methods, headers
 - Registers two routers: `schemes` and `performance`
 
-### 7.2 Configuration — `backend-idea1/app/config.py`
+### 7.2 Configuration — `backend/app/config.py`
 
 | Setting | Env Var | Default |
 |---|---|---|
@@ -585,12 +584,12 @@ Extracts AMC names from scheme names using 49 regex patterns matching known Indi
 | Risk-free rate | `RISK_FREE_RATE` | `0.065` (6.5% per annum) |
 | Port | `PORT` | `8001` |
 
-### 7.3 Database Layer — `backend-idea1/app/database.py`
+### 7.3 Database Layer — `backend/app/database.py`
 
 - Context manager `get_db()`: yields a `sqlite3.Connection`, closes on exit
 - `execute_query_df(conn, sql, params)`: runs query via `pandas.read_sql_query()`
 
-### 7.4 Data Models — `backend-idea1/app/models/performance.py`
+### 7.4 Data Models — `backend/app/models/performance.py`
 
 ```
 SchemeSearch          — { scheme_code: int, scheme_name: str }
@@ -789,9 +788,11 @@ flowchart TD
 
 ---
 
-## 8. Frontend — Generation 2 (AMC Analysis UI)
+## 8. Frontend — Generation 2 (AMC Analysis UI) *(Removed)*
 
-**Location**: `frontend/`  
+> **This generation has been removed.** The `frontend/` folder now contains the Generation 3 Performance Attribution UI (see Section 9). The documentation below is kept for historical reference only.
+
+**Location**: *(removed)*  
 **Framework**: React 18 + Vite  
 **Port**: 3000 (configured in `vite.config.js`)  
 **Charting**: Chart.js 4 via `react-chartjs-2`  
@@ -931,9 +932,9 @@ graph TD
 
 ---
 
-## 9. Frontend — Generation 3 (Performance Attribution UI)
+## 9. Frontend (Performance Attribution UI)
 
-**Location**: `frontend-idea1/`  
+**Location**: `frontend/`  
 **Framework**: React 18 + Vite  
 **Charting**: Recharts 2  
 **Styling**: TailwindCSS  
@@ -949,7 +950,7 @@ Single-page two-column layout:
 
 ```mermaid
 graph TD
-    subgraph APP["App.jsx — frontend-idea1"]
+    subgraph APP["App.jsx — frontend/"]
         LCOL["Left Column\n(Controls)"]
         RCOL["Right Column\n(Analytics)"]
     end
@@ -1095,7 +1096,7 @@ Five sub-tables, all computed **client-side in JavaScript** from the raw rolling
 - Focus on narrative and readability over data density
 
 ### Shared Code (`shared/`)
-Both concepts share the same hooks and API service from `frontend-idea1`:
+Both concepts share the same hooks and API service from `frontend/`:
 - `hooks/useFundSearch.js`
 - `hooks/useIndexFunds.js`
 - `hooks/useFundAnalytics.js`
@@ -1179,18 +1180,15 @@ sequenceDiagram
 
 | Variable | Used By | Default | Description |
 |---|---|---|---|
-| `DATABASE_PATH` | `backend/` | `../../funds.db` | Path to SQLite database file |
-| `DB_PATH` | `backend-idea1/` | `../funds.db` | Path to SQLite database file |
-| `RISK_FREE_RATE` | `backend/` | `0.06` | Annual risk-free rate for metric calculations |
-| `RISK_FREE_RATE` | `backend-idea1/` | `0.065` | Annual risk-free rate (slightly higher in Gen 3) |
-| `PORT` | `backend-idea1/` | `8001` | Server port |
+| `DB_PATH` | `backend/` | `../funds.db` | Path to SQLite database file |
+| `RISK_FREE_RATE` | `backend/` | `0.065` | Annual risk-free rate (6.5% p.a.) |
+| `PORT` | `backend/` | `8001` | Server port |
 
 ### JavaScript Frontends
 
 | Variable | Used By | Default | Description |
 |---|---|---|---|
-| `VITE_API_URL` | `frontend/` | `http://localhost:8000` | Base URL for Gen 2 API |
-| `VITE_API_BASE_URL` | `frontend-idea1/` | `http://localhost:8001` | Base URL for Gen 3 API |
+| `VITE_API_BASE_URL` | `frontend/` | `http://localhost:8001` | Base URL for backend API |
 
 Variables are set in `.env` files at each frontend's root (not committed to git).
 
@@ -1203,7 +1201,7 @@ Variables are set in `.env` files at each frontend's root (not committed to git)
 |---|---|
 | `requests` | HTTP downloads from AMFI website |
 
-### Python — Both Backends (`backend/requirements.txt`, `backend-idea1/requirements.txt`)
+### Python — Backend (`backend/requirements.txt`)
 | Package | Version | Purpose |
 |---|---|---|
 | `fastapi` | latest | Web framework, request routing, validation |
@@ -1214,19 +1212,7 @@ Variables are set in `.env` files at each frontend's root (not committed to git)
 | `python-dotenv` | latest | Load `.env` files for configuration |
 | `aiosqlite` | latest | Async SQLite driver (for future async endpoints) |
 
-### JavaScript — `frontend/` (AMC Analysis)
-| Package | Purpose |
-|---|---|
-| `react` / `react-dom` | UI framework |
-| `vite` | Build tool and dev server |
-| `tailwindcss` | Utility-first CSS framework |
-| `axios` | HTTP client for API calls |
-| `chart.js@4` | Canvas-based charting |
-| `react-chartjs-2` | React wrapper for Chart.js |
-| `react-select` | Advanced multi-select dropdown component |
-| `date-fns` | Date manipulation utilities |
-
-### JavaScript — `frontend-idea1/` (Performance Attribution)
+### JavaScript — `frontend/` (Performance Attribution)
 | Package | Purpose |
 |---|---|
 | `react` / `react-dom` | UI framework |
@@ -1369,8 +1355,8 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     participant USER  as User (Browser)
-    participant FE    as frontend-idea1 (React)
-    participant BE    as backend-idea1 (FastAPI :8001)
+    participant FE    as frontend/ (React)
+    participant BE    as backend/ (FastAPI :8001)
     participant DB    as funds.db (SQLite)
 
     USER  ->> FE   : Open app in browser
@@ -1418,8 +1404,8 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     participant USER as User (Browser)
-    participant FE   as frontend/ (React :3000)
-    participant BE   as backend/ (FastAPI :8000)
+    participant FE   as frontend/ [removed] (React :3000)
+    participant BE   as backend/ [removed] (FastAPI :8000)
     participant DB   as funds.db (SQLite)
 
     USER ->> FE  : Open app
@@ -1461,41 +1447,24 @@ sequenceDiagram
 python create_test_db.py
 ```
 
-### 2. Start Gen 2 Backend (AMC Track Record)
+### 2. Start Backend (Performance Attribution API)
 
 ```bash
 cd backend
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-
-### 3. Start Gen 3 Backend (Performance Attribution)
-
-```bash
-cd backend-idea1
-pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8001
 ```
 
-### 4. Start Gen 2 Frontend
+### 3. Start Frontend (Performance Attribution UI)
 
 ```bash
 cd frontend
 npm install
 npm run dev
-# Available at http://localhost:3000
+# Available at http://localhost:5173
 ```
 
-### 5. Start Gen 3 Frontend
-
-```bash
-cd frontend-idea1
-npm install
-npm run dev
-# Available at Vite default port (usually http://localhost:5173)
-```
-
-### 6. Download Full Production Database
+### 4. Download Full Production Database
 
 Download the latest `funds.db.tar.gz` from the GitHub Releases page, extract to the repository root:
 
@@ -1503,7 +1472,7 @@ Download the latest `funds.db.tar.gz` from the GitHub Releases page, extract to 
 tar -xzvf funds.db.tar.gz
 ```
 
-### 7. Manually Refresh Data
+### 5. Manually Refresh Data
 
 ```bash
 # Fetch today's CSV

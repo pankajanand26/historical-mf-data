@@ -1,55 +1,52 @@
-const apiUrl = import.meta.env.VITE_API_URL;
-export const API_BASE_URL = apiUrl !== undefined ? apiUrl : 'http://localhost:8000';
+// ─── Constants for frontend-idea1 ─────────────────────────────────────────────
 
+// Fund colors (up to 5 funds)
+export const FUND_COLORS = [
+  '#2563eb', // blue
+  '#dc2626', // red
+  '#d97706', // amber
+  '#7c3aed', // violet
+  '#db2777', // pink
+];
+
+// Benchmark color (green, dashed line)
+export const BENCHMARK_COLOR = '#16a34a';
+
+// Maximum number of funds that can be selected
+export const MAX_FUNDS = 5;
+
+// Debounce delay for search input (ms)
+export const DEBOUNCE_MS = 350;
+
+// Rolling window options
+export const WINDOWS = [
+  { id: '1y', label: '1Y', days: 365 },
+  { id: '3y', label: '3Y', days: 1095 },
+  { id: '5y', label: '5Y', days: 1825 },
+  { id: '10y', label: '10Y', days: 3650 },
+];
+
+// Date range presets
 export const DATE_PRESETS = [
-  { label: '1 Year', value: '1y' },
-  { label: '3 Years', value: '3y' },
-  { label: '5 Years', value: '5y' },
-  { label: 'All Time', value: 'all' },
-  { label: 'Custom', value: 'custom' },
+  { id: '1y', label: '1Y' },
+  { id: '3y', label: '3Y' },
+  { id: '5y', label: '5Y' },
+  { id: '10y', label: '10Y' },
+  { id: 'all', label: 'All' },
+  { id: 'custom', label: 'Custom' },
 ];
 
-export const PLAN_TYPES = [
-  { label: 'All Plans', value: null },
-  { label: 'Direct Only', value: 'direct' },
-  { label: 'Regular Only', value: 'regular' },
+// Default risk-free rate (6.5% annual)
+export const DEFAULT_RF_RATE = 0.065;
+
+// Tab definitions for the main chart view
+export const TABS = [
+  { id: 'returns', label: 'Returns' },
+  { id: 'performance', label: 'Performance' },
+  { id: 'capture', label: 'Capture' },
+  { id: 'drawdown', label: 'Drawdown' },
+  { id: 'scorecard', label: 'Scorecard' },
+  { id: 'distribution', label: 'Distribution' },
+  { id: 'sip', label: 'SIP Planner' },
+  { id: 'monthly', label: 'Monthly' },
 ];
-
-export const CHART_COLORS = [
-  '#2563eb',
-  '#dc2626',
-  '#16a34a',
-  '#ea580c',
-  '#9333ea',
-  '#0891b2',
-  '#c026d3',
-  '#65a30d',
-  '#0d9488',
-  '#db2777',
-];
-
-export const METRIC_LABELS = {
-  cagr: 'CAGR',
-  sharpe_ratio: 'Sharpe Ratio',
-  sortino_ratio: 'Sortino Ratio',
-  calmar_ratio: 'Calmar Ratio',
-  treynor_ratio: 'Treynor Ratio',
-  information_ratio: 'Information Ratio',
-  beta: 'Beta',
-  alpha: 'Alpha',
-  max_drawdown: 'Max Drawdown',
-  volatility: 'Volatility',
-};
-
-export const METRIC_DESCRIPTIONS = {
-  cagr: 'Compound Annual Growth Rate',
-  sharpe_ratio: 'Risk-adjusted return (higher is better)',
-  sortino_ratio: 'Downside risk-adjusted return (higher is better)',
-  calmar_ratio: 'Return vs max drawdown (higher is better)',
-  treynor_ratio: 'Excess return per unit of systematic risk',
-  information_ratio: 'Active return vs tracking error',
-  beta: 'Systematic risk relative to benchmark',
-  alpha: 'Excess return over benchmark',
-  max_drawdown: 'Largest peak-to-trough decline',
-  volatility: 'Annualized standard deviation of returns',
-};

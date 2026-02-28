@@ -1,5 +1,4 @@
-from .amc import router as amc_router
-from .analysis import router as analysis_router
-from .expense import router as expense_router
+from app.routers.schemes import router as schemes_router
+from app.routers.performance import router as performance_router
 
-__all__ = ["amc_router", "analysis_router", "expense_router"]
+__all__ = ["schemes_router", "performance_router"]
