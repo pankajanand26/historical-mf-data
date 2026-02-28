@@ -1,15 +1,28 @@
 import { useState, useMemo } from 'react';
+import Fuse from 'fuse.js';
 import { useIndexFunds } from '../../hooks/useIndexFunds';
+
+// Fuse.js config — tuned for short fund-name tokens
+// threshold 0.35: tolerates ~1-2 character typos; lower = stricter
+const FUSE_OPTIONS = {
+  keys: ['scheme_name'],
+  threshold: 0.35,
+  distance: 200,      // allow match anywhere within a long name
+  minMatchCharLength: 2,
+  shouldSort: true,   // sort by match score (best first)
+};
 
 const BenchmarkPicker = ({ selectedBenchmark, onSelect }) => {
   const { indexFunds, loading, error } = useIndexFunds();
   const [filter, setFilter] = useState('');
 
+  // Build Fuse index once whenever the list changes
+  const fuse = useMemo(() => new Fuse(indexFunds, FUSE_OPTIONS), [indexFunds]);
+
   const filtered = useMemo(() => {
     if (!filter.trim()) return indexFunds;
-    const q = filter.toLowerCase();
-    return indexFunds.filter((f) => f.scheme_name.toLowerCase().includes(q));
-  }, [indexFunds, filter]);
+    return fuse.search(filter.trim()).map((r) => r.item);
+  }, [fuse, indexFunds, filter]);
 
   const handleClear = () => {
     onSelect(null);
@@ -62,7 +75,7 @@ const BenchmarkPicker = ({ selectedBenchmark, onSelect }) => {
               type="text"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              placeholder="Filter index funds..."
+              placeholder="Search index funds (fuzzy)..."
               className="w-full text-sm bg-transparent outline-none placeholder-gray-400"
             />
           </div>

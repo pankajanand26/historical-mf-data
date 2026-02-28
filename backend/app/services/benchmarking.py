@@ -17,20 +17,39 @@ def search_schemes(query: str, limit: int = 20) -> list[dict]:
     Restricted to Direct Growth plans only — consistent with benchmark selection
     and appropriate for rolling-return analysis (IDCW/Regular plans distort NAV
     due to dividend distributions and distributor commissions).
+
+    Multi-token search: splits query on whitespace and ANDs all tokens, so
+    "hdfc flexi" and "flexi hdfc" both find "HDFC Flexi Cap Fund - Direct Plan".
+    Results are sorted by relevance: names that start with the first token rank
+    above names that merely contain it.
+
     Returns unique scheme_code rows (no ISIN join).
     """
+    tokens = [t.strip() for t in query.split() if t.strip()]
+    if not tokens:
+        return []
+
+    # Build one LIKE condition per token (all must match, in any order)
+    token_clauses = " AND ".join(["scheme_name LIKE ?" for _ in tokens])
+    token_params = [f"%{t}%" for t in tokens]
+
     rows = execute_query(
-        """
+        f"""
         SELECT scheme_code, scheme_name
         FROM scheme_data
-        WHERE scheme_name LIKE ?
+        WHERE {token_clauses}
           AND scheme_name LIKE '%Direct%'
           AND scheme_name LIKE '%Growth%'
         ORDER BY scheme_name
         LIMIT ?
         """,
-        (f"%{query}%", limit),
+        (*token_params, limit),
     )
+
+    # Relevance re-sort: names starting with the first token float to the top
+    first = tokens[0].lower()
+    rows.sort(key=lambda r: 0 if r["scheme_name"].lower().startswith(first) else 1)
+
     return rows
 
 

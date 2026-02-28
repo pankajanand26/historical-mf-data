@@ -15,7 +15,7 @@ const FundSearchBar = ({
   selectedFunds = [],
   onAdd,
   onRemove,
-  placeholder = 'Search mutual fund...',
+  placeholder = 'Search by any words, any order...',
 }) => {
   const { query, results, loading, error, search, clear } = useFundSearch();
   const [open, setOpen] = useState(false);
