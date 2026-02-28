@@ -4,9 +4,12 @@ import FundSearchBar from './components/search/FundSearchBar';
 import BenchmarkPicker from './components/benchmark/BenchmarkPicker';
 import WindowSelector from './components/controls/WindowSelector';
 import DateRangePicker from './components/controls/DateRangePicker';
+import RfRateInput from './components/controls/RfRateInput';
 import RollingReturnChart from './components/charts/RollingReturnChart';
+import { TabNav, ExportButton, KpiStrip } from './components/ui';
 import { useRollingReturns } from './hooks/useRollingReturns';
 import { useFundAnalytics } from './hooks/useFundAnalytics';
+import { DEFAULT_RF_RATE } from './utils/constants';
 
 const getDateRange = (preset, startDate, endDate) => {
   if (preset === 'custom') return { startDate, endDate };
@@ -31,6 +34,8 @@ const App = () => {
   const [datePreset, setDatePreset] = useState('all');
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
+  const [activeTab, setActiveTab] = useState('returns');
+  const [rfRate, setRfRate] = useState(DEFAULT_RF_RATE);
 
   const { data, loading, error, fetch: fetchReturns, reset } = useRollingReturns();
   const { data: analyticsData, loading: analyticsLoading, fetch: fetchAnalytics, reset: resetAnalytics } = useFundAnalytics();
@@ -81,9 +86,17 @@ const App = () => {
             <h1 className="text-xl font-bold text-gray-900">Performance Attribution & Benchmarking</h1>
             <p className="text-sm text-gray-500">Rolling return analysis · Indian mutual funds · AMFI data</p>
           </div>
-          <span className="hidden sm:inline text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Idea 1</span>
+          <div className="flex items-center gap-3">
+            <ExportButton data={data} analyticsData={analyticsData} activeTab={activeTab} />
+            <span className="hidden sm:inline text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Idea 1</span>
+          </div>
         </div>
       </header>
+
+      {/* KPI Strip - below header, above main content */}
+      {data && !loading && (
+        <KpiStrip data={data} analyticsData={analyticsData} rfRate={rfRate} />
+      )}
 
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -113,6 +126,8 @@ const App = () => {
                 onStartDateChange={setStartDate}
                 onEndDateChange={setEndDate}
               />
+
+              <RfRateInput value={rfRate} onChange={setRfRate} />
 
               <button
                 onClick={handleAnalyze}
@@ -173,7 +188,16 @@ const App = () => {
             )}
 
             {data && !loading && (
-              <RollingReturnChart data={data} analyticsData={analyticsData} analyticsLoading={analyticsLoading} />
+              <>
+                <TabNav activeTab={activeTab} setActiveTab={setActiveTab} />
+                <RollingReturnChart
+                  data={data}
+                  analyticsData={analyticsData}
+                  analyticsLoading={analyticsLoading}
+                  activeTab={activeTab}
+                  rfRate={rfRate}
+                />
+              </>
             )}
           </section>
         </div>
