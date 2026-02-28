@@ -219,11 +219,12 @@ function computeVolatilityStats(chartData, fund, rfPct) {
 function computeCaptureStats(chartData, fund) {
   const key = `fund_${fund.scheme_code}`;
   const upFund = [], upBench = [], downFund = [], downBench = [];
-  let upConsistCount = 0, downConsistCount = 0;
+  let upConsistCount = 0, downConsistCount = 0, totalCount = 0, downAlphaSum = 0;
 
   for (const row of chartData) {
     const fv = row[key], bv = row.benchmark;
     if (fv == null || bv == null) continue;
+    totalCount++;
     if (bv > 0) {
       upFund.push(fv);
       upBench.push(bv);
@@ -231,6 +232,7 @@ function computeCaptureStats(chartData, fund) {
     } else if (bv < 0) {
       downFund.push(fv);
       downBench.push(bv);
+      downAlphaSum += fv - bv;
       if (fv > bv) downConsistCount++;  // fund fell less than benchmark
     }
   }
@@ -251,8 +253,9 @@ function computeCaptureStats(chartData, fund) {
 
   const upConsistPct = upFund.length > 0 ? (upConsistCount / upFund.length) * 100 : NaN;
   const downConsistPct = downFund.length > 0 ? (downConsistCount / downFund.length) * 100 : NaN;
+  const downAlpha = downFund.length > 0 ? downAlphaSum / downFund.length : NaN;
 
-  return { ucr, dcr, captureRatio, upConsistPct, downConsistPct, upPeriods: upFund.length, downPeriods: downFund.length };
+  return { ucr, dcr, captureRatio, upConsistPct, downConsistPct, upPeriods: upFund.length, downPeriods: downFund.length, totalPeriods: totalCount, downAlpha };
 }
 
 /**
@@ -1048,6 +1051,103 @@ const RollingReturnChart = ({ data, analyticsData, analyticsLoading }) => {
               </p>
               <p className="text-gray-300">
                 Note: computed from overlapping rolling-return observations (not monthly NAV as per Morningstar convention). Best used for relative comparison across funds.
+              </p>
+            </div>
+
+            {/* ── Period breakdown table ──────────────────────────────────── */}
+            <div className="mt-6">
+              <SectionHeader
+                title="Observation Period Breakdown"
+                subtitle="Number of rolling-return observations used in the capture analysis above"
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left font-medium text-gray-500 pb-2 pr-4">Fund</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-3">Total Observations</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-3">Up-Market Periods</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 pl-3">Down-Market Periods</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {captureStats.map(({ fund, color, capture }) => (
+                      <tr key={fund.scheme_code} className="hover:bg-gray-50 transition-colors">
+                        <td className="py-3 pr-4">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                            <span className="font-medium text-gray-800 truncate" title={fund.scheme_name}>
+                              {shortName(fund.scheme_name)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-right font-semibold text-gray-800">
+                          {capture.totalPeriods}
+                        </td>
+                        <td className="py-3 px-3 text-right font-semibold text-blue-600">
+                          {capture.upPeriods}
+                        </td>
+                        <td className="py-3 pl-3 text-right font-semibold text-rose-600">
+                          {capture.downPeriods}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                Up-market periods: benchmark rolling return &gt; 0. Down-market periods: benchmark rolling return &lt; 0.
+                Observations where benchmark = 0 exactly are excluded from both counts but included in the total.
+              </p>
+            </div>
+
+            {/* ── Down Market Alpha table ─────────────────────────────────── */}
+            <div className="mt-6">
+              <SectionHeader
+                title="Down Market Alpha"
+                subtitle="Average excess return (fund − benchmark) across all down-market rolling-return observations"
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left font-medium text-gray-500 pb-2 pr-4">Fund</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-3">Down Market Alpha</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 pl-3">Down Periods Used</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {captureStats.map(({ fund, color, capture }) => (
+                      <tr key={fund.scheme_code} className="hover:bg-gray-50 transition-colors">
+                        <td className="py-3 pr-4">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                            <span className="font-medium text-gray-800 truncate" title={fund.scheme_name}>
+                              {shortName(fund.scheme_name)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          {isNaN(capture.downAlpha) ? (
+                            <span className="text-gray-400">N/A</span>
+                          ) : (
+                            <span className={`font-semibold ${capture.downAlpha >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {capture.downAlpha >= 0 ? '+' : ''}{capture.downAlpha.toFixed(2)}%
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 pl-3 text-right font-semibold text-gray-600">
+                          {capture.downPeriods > 0 ? capture.downPeriods : <span className="text-gray-400">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                Down Market Alpha = mean(fund return − benchmark return) in all down-benchmark rolling-return observations.{' '}
+                <span className="text-emerald-600 font-medium">Positive</span> = fund lost less than the benchmark on average during downturns (downside protection).{' '}
+                <span className="text-rose-600 font-medium">Negative</span> = fund amplified losses relative to the benchmark (typically driven by expense ratio drag for index funds).
               </p>
             </div>
           </div>
