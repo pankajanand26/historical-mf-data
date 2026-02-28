@@ -48,5 +48,7 @@ export const TABS = [
   { id: 'scorecard', label: 'Scorecard' },
   { id: 'distribution', label: 'Distribution' },
   { id: 'sip', label: 'SIP Planner' },
+  { id: 'reverse-sip', label: 'Reverse SIP' },
+  { id: 'retirement', label: 'Retirement' },
   { id: 'monthly', label: 'Monthly' },
 ];

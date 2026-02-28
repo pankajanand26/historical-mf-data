@@ -9,6 +9,8 @@ import {
   buildChartData, computeAllStats, rfPeriodPct, computeFreefincalCaptureStats,
   computeFundScores, scoreGrade, scoreColor, extractReturnDist, computeGoalProjections, goalProbability,
   computeKPIs,
+  requiredMonthlySIP, computeReverseSipScenarios, sipSensitivity,
+  computeRetirementCorpus, runRetirementMonteCarlo, findSafeWithdrawalRate,
 } from '../../../shared/utils/chartUtils';
 
 // ── Dark theme chart styles ────────────────────────────────────────────────────
@@ -26,6 +28,8 @@ const SECTIONS = [
   { id: 'dist', label: '06 DIST' },
   { id: 'sip', label: '07 SIP' },
   { id: 'monthly', label: '08 MONTHLY' },
+  { id: 'reverse-sip', label: '09 REV SIP' },
+  { id: 'retirement', label: '10 RETIRE' },
 ];
 
 // ── Shared table primitives ────────────────────────────────────────────────────
@@ -727,6 +731,201 @@ const SipPlannerSection = ({ data, rfRate, activeWindow }) => {
   );
 };
 
+// ── Reverse SIP Calculator section ────────────────────────────────────────────
+const ReverseSipSection = ({ data, activeWindow }) => {
+  const [target, setTarget]             = useState(2500000);
+  const [years, setYears]               = useState(10);
+  const [sensitivitySIP, setSensitivity] = useState(8000);
+
+  const avail   = useMemo(() => data?.benchmark_windows?.map((bw) => bw.window) ?? [], [data]);
+  const curWin  = avail.includes(activeWindow) ? activeWindow : (avail[0] ?? '3y');
+  const funds   = data?.funds ?? [];
+  const primary = funds[0];
+
+  const primaryDist = useMemo(
+    () => (primary ? extractReturnDist(data, primary.scheme_code, curWin) : []),
+    [data, primary, curWin]
+  );
+
+  const scenarios = useMemo(
+    () => (primaryDist.length ? computeReverseSipScenarios(primaryDist, target, years) : []),
+    [primaryDist, target, years]
+  );
+
+  const sensitivity = useMemo(
+    () => (primaryDist.length ? sipSensitivity(primaryDist, sensitivitySIP, years, target) : null),
+    [primaryDist, sensitivitySIP, years, target]
+  );
+
+  // Per-fund P50 comparison
+  const fundP50 = useMemo(
+    () =>
+      funds.map((fund, i) => {
+        const dist = extractReturnDist(data, fund.scheme_code, curWin);
+        const rows = dist.length ? computeReverseSipScenarios(dist, target, years) : [];
+        return {
+          fund,
+          color: FUND_COLORS[i % FUND_COLORS.length],
+          p50: rows.find((r) => r.label === 'P50'),
+          obs: dist.length,
+        };
+      }),
+    [data, funds, target, years, curWin]
+  );
+
+  const hitBarWidth = sensitivity ? Math.max(2, Math.min(100, sensitivity.hitRatePct)) : 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-terminal-muted">Target ₹</span>
+          <input type="number" value={target}
+            onChange={(e) => setTarget(Math.max(10000, parseInt(e.target.value) || 10000))}
+            className="w-28 px-2 py-1 text-xs bg-terminal-bg border border-terminal-border rounded text-terminal-text outline-none focus:border-terminal-amber" />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-terminal-muted">Years</span>
+          <input type="number" value={years}
+            onChange={(e) => setYears(Math.max(1, Math.min(30, parseInt(e.target.value) || 1)))}
+            className="w-16 px-2 py-1 text-xs bg-terminal-bg border border-terminal-border rounded text-terminal-text outline-none focus:border-terminal-amber" />
+        </div>
+        {primary && (
+          <span className="text-[10px] text-terminal-muted ml-auto">
+            {shortName(primary.scheme_name)} · {curWin.toUpperCase()} · {primaryDist.length} obs
+          </span>
+        )}
+      </div>
+
+      <SectionLabel>Required Monthly SIP by Scenario</SectionLabel>
+      {scenarios.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr>
+                <Th>Scenario</Th>
+                <Th right>CAGR</Th>
+                <Th right>SIP / month</Th>
+                <Th right>Total Invested</Th>
+                <Th right>Gain</Th>
+                <Th right>Multiple</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {scenarios.map((row) => {
+                const isBase = row.label === 'P50';
+                const labelColor = row.isBear
+                  ? 'text-terminal-red'
+                  : row.isBull
+                    ? 'text-terminal-green'
+                    : 'text-terminal-amber';
+                return (
+                  <tr key={row.label}
+                    className={`hover:bg-terminal-surface/60 ${isBase ? 'bg-terminal-surface/40' : ''}`}>
+                    <Td>
+                      <span className={`font-mono font-bold ${labelColor}`}>{row.label}</span>
+                      {isBase && <span className="ml-2 text-[9px] text-terminal-amber">◄ BASE</span>}
+                    </Td>
+                    <Td right>{fmt1(row.annualReturnPct)}</Td>
+                    <Td right accent={isBase ? 'text-terminal-amber font-semibold' : 'text-terminal-text'}>
+                      ₹{row.requiredSIP.toLocaleString('en-IN')}
+                    </Td>
+                    <Td right>{fmtLakh(row.totalInvested)}</Td>
+                    <Td right accent={row.totalGain >= 0 ? 'text-terminal-green' : 'text-terminal-red'}>
+                      {row.totalGain >= 0 ? '+' : ''}{fmtLakh(row.totalGain)}
+                    </Td>
+                    <Td right accent="text-terminal-muted">{row.wealthMultiple}x</Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-terminal-muted text-sm">No data available for the selected window.</p>
+      )}
+
+      {/* Sensitivity */}
+      {primaryDist.length > 0 && (
+        <>
+          <SectionLabel>Sensitivity — What if I can only invest…</SectionLabel>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-[10px] text-terminal-muted">₹</span>
+            <input type="number" value={sensitivitySIP}
+              onChange={(e) => setSensitivity(Math.max(500, parseInt(e.target.value) || 500))}
+              className="w-24 px-2 py-1 text-xs bg-terminal-bg border border-terminal-border rounded text-terminal-text outline-none focus:border-terminal-amber" />
+            <span className="text-[10px] text-terminal-muted">/ month</span>
+          </div>
+          {sensitivity && (
+            <div className="space-y-2">
+              <p className="text-xs text-terminal-text">
+                Required CAGR:{' '}
+                <span className="font-mono font-bold text-terminal-amber">
+                  {sensitivity.requiredReturnPct.toFixed(1)}%
+                </span>
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 bg-terminal-surface rounded-full h-2 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${
+                      sensitivity.hitRatePct >= 60
+                        ? 'bg-terminal-green'
+                        : sensitivity.hitRatePct >= 30
+                          ? 'bg-terminal-amber'
+                          : 'bg-terminal-red'
+                    }`}
+                    style={{ width: `${hitBarWidth}%` }}
+                  />
+                </div>
+                <span className={`text-sm font-mono font-bold w-12 text-right ${
+                  sensitivity.hitRatePct >= 60 ? 'text-terminal-green'
+                    : sensitivity.hitRatePct >= 30 ? 'text-terminal-amber'
+                      : 'text-terminal-red'
+                }`}>
+                  {sensitivity.hitRatePct.toFixed(0)}%
+                </span>
+                <span className="text-[10px] text-terminal-muted">of periods delivered this</span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Fund comparison P50 */}
+      {funds.length > 1 && (
+        <>
+          <SectionLabel>Fund Comparison — Base (P50) Required SIP</SectionLabel>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <Th>Fund</Th>
+                  <Th right>CAGR (P50)</Th>
+                  <Th right>SIP / month</Th>
+                  <Th right>Total Invested</Th>
+                  <Th right>Obs.</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {fundP50.map(({ fund, color, p50, obs }) => (
+                  <tr key={fund.scheme_code} className="hover:bg-terminal-surface/60">
+                    <Td><FundDot color={color} name={fund.scheme_name} /></Td>
+                    <Td right>{p50 ? fmt1(p50.annualReturnPct) : '—'}</Td>
+                    <Td right accent="text-terminal-green">{p50 ? `₹${p50.requiredSIP.toLocaleString('en-IN')}` : '—'}</Td>
+                    <Td right>{p50 ? fmtLakh(p50.totalInvested) : '—'}</Td>
+                    <Td right accent="text-terminal-muted">{obs}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 // ── Monthly Returns Heatmap section ────────────────────────────────────────────
 const MonthlyHeatmapSection = ({ data }) => {
   const [activeFund, setActiveFund] = useState('benchmark');
@@ -834,6 +1033,211 @@ const MonthlyHeatmapSection = ({ data }) => {
   );
 };
 
+// ── Retirement Corpus Simulator section ───────────────────────────────────────
+const RetirementSection = ({ data, activeWindow }) => {
+  const [monthlySIP, setMonthlySIP]       = useState(20000);
+  const [yearsToRetire, setYearsToRetire] = useState(25);
+  const [currentCorpus, setCurrentCorpus] = useState(0);
+  const [withdrawal, setWithdrawal]       = useState(80000);
+  const [retireDuration, setRetireDuration] = useState(30);
+  const [inflation, setInflation]         = useState(6);
+  const [equityAlloc, setEquityAlloc]     = useState(30);
+  const [debtReturn, setDebtReturn]       = useState(6.5);
+  const [mcRuns, setMcRuns]               = useState(300);
+  const [corpusChoice, setCorpusChoice]   = useState('p50');
+
+  const avail   = useMemo(() => data?.benchmark_windows?.map((bw) => bw.window) ?? [], [data]);
+  const curWin  = avail.includes(activeWindow) ? activeWindow : (avail[0] ?? '3y');
+  const primary = data?.funds?.[0];
+
+  const dist = useMemo(
+    () => (primary ? extractReturnDist(data, primary.scheme_code, curWin) : []),
+    [data, primary, curWin]
+  );
+
+  const corpus = useMemo(
+    () => (dist.length ? computeRetirementCorpus(dist, monthlySIP, yearsToRetire, currentCorpus) : null),
+    [dist, monthlySIP, yearsToRetire, currentCorpus]
+  );
+
+  const selectedCorpus = corpus ? corpus[corpusChoice] : 0;
+
+  const mcResult = useMemo(() => {
+    if (!dist.length || !selectedCorpus) return null;
+    return runRetirementMonteCarlo(
+      dist, selectedCorpus, withdrawal,
+      retireDuration, debtReturn, equityAlloc, inflation, mcRuns
+    );
+  }, [dist, selectedCorpus, withdrawal, retireDuration, debtReturn, equityAlloc, inflation, mcRuns]);
+
+  const swr = useMemo(() => {
+    if (!dist.length || !selectedCorpus) return null;
+    return findSafeWithdrawalRate(
+      dist, selectedCorpus, retireDuration,
+      debtReturn, equityAlloc, inflation, 90, 200
+    );
+  }, [dist, selectedCorpus, retireDuration, debtReturn, equityAlloc, inflation]);
+
+  const successRate  = mcResult?.successRate ?? null;
+  const successColor = successRate == null ? 'text-terminal-muted'
+    : successRate >= 80 ? 'text-terminal-green'
+    : successRate >= 60 ? 'text-terminal-amber'
+    : 'text-terminal-red';
+
+  const requiredSWR = selectedCorpus ? +((withdrawal * 12 / selectedCorpus) * 100).toFixed(1) : 0;
+  const swrDanger   = swr ? requiredSWR > swr.swrPct * 1.1 : false;
+
+  const TInput = ({ label, value, onChange, width = 'w-24', step = 1 }) => (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] text-terminal-muted w-36 flex-shrink-0">{label}</span>
+      <input type="number" value={value} step={step}
+        onChange={(e) => onChange(step === 1 ? parseInt(e.target.value) || 0 : parseFloat(e.target.value) || 0)}
+        className={`${width} px-2 py-1 text-xs bg-terminal-bg border border-terminal-border rounded text-terminal-text outline-none focus:border-terminal-amber`} />
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Inputs — two column grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Accumulation */}
+        <div className="space-y-2">
+          <SectionLabel>Accumulation</SectionLabel>
+          <TInput label="Monthly SIP (₹)" value={monthlySIP} onChange={(v) => setMonthlySIP(Math.max(500, v))} />
+          <TInput label="Years to retire" value={yearsToRetire} onChange={(v) => setYearsToRetire(Math.max(1, Math.min(40, v)))} width="w-16" />
+          <TInput label="Current corpus (₹)" value={currentCorpus} onChange={(v) => setCurrentCorpus(Math.max(0, v))} />
+        </div>
+        {/* Decumulation */}
+        <div className="space-y-2">
+          <SectionLabel>Decumulation</SectionLabel>
+          <TInput label="Monthly withdrawal (₹)" value={withdrawal} onChange={(v) => setWithdrawal(Math.max(500, v))} />
+          <TInput label="Retirement duration (yr)" value={retireDuration} onChange={(v) => setRetireDuration(Math.max(5, Math.min(50, v)))} width="w-16" />
+          <TInput label="Inflation (%)" value={inflation} onChange={(v) => setInflation(Math.max(0, Math.min(20, v)))} width="w-16" />
+          <TInput label="Equity allocation (%)" value={equityAlloc} onChange={(v) => setEquityAlloc(Math.max(0, Math.min(100, v)))} width="w-16" />
+          <TInput label="Debt return (%)" value={debtReturn} onChange={(v) => setDebtReturn(Math.max(0, Math.min(20, v)))} width="w-16" step={0.1} />
+        </div>
+      </div>
+
+      {/* MC runs + corpus choice */}
+      <div className="flex items-center gap-3 flex-wrap text-[10px]">
+        <span className="text-terminal-muted">MC runs</span>
+        <input type="number" value={mcRuns}
+          onChange={(e) => setMcRuns(Math.max(100, Math.min(1000, parseInt(e.target.value) || 300)))}
+          className="w-16 px-2 py-1 text-xs bg-terminal-bg border border-terminal-border rounded text-terminal-text outline-none focus:border-terminal-amber" />
+        <span className="text-terminal-muted ml-2">Corpus basis</span>
+        {['p10', 'p25', 'p50', 'p75', 'p90'].map((k) => (
+          <button key={k} onClick={() => setCorpusChoice(k)}
+            className={`px-2 py-0.5 text-xs rounded transition-colors ${
+              corpusChoice === k ? 'bg-terminal-amber text-terminal-bg font-bold' : 'text-terminal-muted border border-terminal-border hover:border-terminal-amber'
+            }`}>
+            {k.toUpperCase()}
+          </button>
+        ))}
+        {primary && (
+          <span className="ml-auto text-terminal-muted">{shortName(primary.scheme_name)} · {curWin.toUpperCase()} · {dist.length} obs</span>
+        )}
+      </div>
+
+      {/* Accumulation result */}
+      {corpus && (
+        <>
+          <SectionLabel>Projected Corpus at Retirement ({yearsToRetire}Y)</SectionLabel>
+          <div className="grid grid-cols-5 gap-2 text-center">
+            {[['P10', corpus.p10], ['P25', corpus.p25], ['P50', corpus.p50], ['P75', corpus.p75], ['P90', corpus.p90]].map(([label, val]) => (
+              <div key={label}
+                onClick={() => setCorpusChoice(label.toLowerCase())}
+                className={`cursor-pointer rounded px-2 py-2 border transition-all ${
+                  corpusChoice === label.toLowerCase()
+                    ? 'border-terminal-amber bg-terminal-surface'
+                    : 'border-terminal-border hover:border-terminal-amber/50'
+                }`}>
+                <p className={`text-[9px] font-semibold mb-1 ${corpusChoice === label.toLowerCase() ? 'text-terminal-amber' : 'text-terminal-muted'}`}>{label}</p>
+                <p className="text-xs font-mono font-bold text-terminal-text">{fmtLakh(val)}</p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* MC results */}
+      {mcResult && (
+        <>
+          <SectionLabel>
+            Retirement Viability — {mcRuns} paths · {fmtLakh(selectedCorpus)} corpus · ₹{withdrawal.toLocaleString('en-IN')}/mo withdrawal
+          </SectionLabel>
+          <div className="flex items-center gap-6 flex-wrap">
+            <div>
+              <p className={`text-3xl font-mono font-bold ${successColor}`}>{successRate.toFixed(1)}%</p>
+              <p className="text-[10px] text-terminal-muted">success rate</p>
+            </div>
+            <div className="text-xs text-terminal-text space-y-0.5">
+              <p>
+                <span className="text-terminal-green font-semibold">
+                  {Math.round((successRate / 100) * mcRuns).toLocaleString('en-IN')}
+                </span>
+                {' / '}{mcRuns} paths survived {retireDuration} years
+              </p>
+              {mcResult.avgDepletionYear && (
+                <p className="text-terminal-red">
+                  Failed paths depleted avg year {mcResult.avgDepletionYear.toFixed(0)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Fan chart */}
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={mcResult.fanChart} margin={{ top: 5, right: 10, bottom: 5, left: 50 }}>
+              <defs>
+                <linearGradient id="retireGradT" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#22c55e" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#22c55e" stopOpacity={0.03} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="2 4" stroke={GRID} />
+              <XAxis dataKey="year" tick={TICK_STYLE} tickLine={false}
+                label={{ value: 'Year of retirement', position: 'insideBottom', offset: -5, fontSize: 11, fill: '#8b949e' }} />
+              <YAxis tickFormatter={(v) => fmtLakh(v)} tick={TICK_STYLE} tickLine={false} axisLine={false} width={55} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => fmtLakh(v)} />
+              <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1.5} strokeDasharray="4 2" />
+              <Area type="monotone" dataKey="p10" stroke="none" fill="#22c55e" fillOpacity={0.08} name="P10" />
+              <Area type="monotone" dataKey="p25" stroke="none" fill="#22c55e" fillOpacity={0.12} name="P25" />
+              <Area type="monotone" dataKey="p50" stroke="#22c55e" fill="url(#retireGradT)" strokeWidth={2} name="P50" />
+              <Area type="monotone" dataKey="p75" stroke="none" fill="#22c55e" fillOpacity={0.12} name="P75" />
+              <Area type="monotone" dataKey="p90" stroke="none" fill="#22c55e" fillOpacity={0.08} name="P90" />
+            </AreaChart>
+          </ResponsiveContainer>
+
+          {/* SWR */}
+          {swr && (
+            <>
+              <SectionLabel>Safe Withdrawal Rate (90% confidence)</SectionLabel>
+              <div className="flex items-center gap-6 flex-wrap">
+                <div>
+                  <p className="text-lg font-mono font-bold text-terminal-green">
+                    {fmtLakh(swr.safeMonthlyWithdrawal)} / month
+                  </p>
+                  <p className="text-[10px] text-terminal-muted">{swr.swrPct}% SWR annual</p>
+                </div>
+                <div className={`text-xs ${swrDanger ? 'text-terminal-red' : 'text-terminal-text'}`}>
+                  <p>
+                    Your target: ₹{withdrawal.toLocaleString('en-IN')}/mo = {requiredSWR}% SWR
+                    {swrDanger && <span className="ml-2 font-bold">⚠ ABOVE SAFE RATE</span>}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {!dist.length && (
+        <p className="text-terminal-muted text-sm">No data available for the selected window.</p>
+      )}
+    </div>
+  );
+};
+
 // ── KPI Summary Strip ──────────────────────────────────────────────────────────
 const KpiStrip = ({ data, rfRate, activeWindow, setActiveWindow }) => {
   const avail = data?.benchmark_windows?.map((bw) => bw.window) ?? [];
@@ -915,6 +1319,8 @@ const TerminalChart = ({ data, analyticsData, analyticsLoading, loading, error, 
             {activeSection === 'dist' && <DistributionSection data={data} rfRate={rfRate} activeWindow={activeWindow} />}
             {activeSection === 'sip' && <SipPlannerSection data={data} rfRate={rfRate} activeWindow={activeWindow} />}
             {activeSection === 'monthly' && <MonthlyHeatmapSection data={data} />}
+            {activeSection === 'reverse-sip' && <ReverseSipSection data={data} activeWindow={activeWindow} />}
+            {activeSection === 'retirement' && <RetirementSection data={data} activeWindow={activeWindow} />}
           </>
         )}
       </div>

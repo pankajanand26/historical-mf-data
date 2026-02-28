@@ -16,6 +16,8 @@ import {
   ScorecardCard,
   DistributionCard,
   SipPlannerCard,
+  ReverseSipCard,
+  RetirementCard,
   MonthlyHeatmapCard,
 } from './cards';
 
@@ -179,6 +181,12 @@ const RollingReturnChart = ({
 
       case 'sip':
         return <SipPlannerCard data={data} activeWindow={activeWindow} />;
+
+      case 'reverse-sip':
+        return <ReverseSipCard data={data} activeWindow={activeWindow} />;
+
+      case 'retirement':
+        return <RetirementCard data={data} activeWindow={activeWindow} />;
 
       case 'monthly':
         return <MonthlyHeatmapCard data={data} />;

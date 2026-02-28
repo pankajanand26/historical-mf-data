@@ -5,4 +5,6 @@ export { default as DrawdownCard } from './DrawdownCard';
 export { default as ScorecardCard } from './ScorecardCard';
 export { default as DistributionCard } from './DistributionCard';
 export { default as SipPlannerCard } from './SipPlannerCard';
+export { default as ReverseSipCard } from './ReverseSipCard';
+export { default as RetirementCard } from './RetirementCard';
 export { default as MonthlyHeatmapCard } from './MonthlyHeatmapCard';
