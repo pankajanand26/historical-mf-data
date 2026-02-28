@@ -266,52 +266,52 @@ const CaptureSection = ({ data, rfRate }) => {
         ))}
       </div>
 
-      <SectionLabel>Capture Ratios</SectionLabel>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead><tr><Th>Fund</Th><Th right>UCR</Th><Th right>DCR</Th><Th right>Ratio</Th><Th right>Up Cons%</Th><Th right>Dn Cons%</Th></tr></thead>
-          <tbody>
-            {allStats.map(({ fund, color, capture }) => (
-              <tr key={fund.scheme_code} className="hover:bg-terminal-surface/60">
-                <Td><FundDot color={color} name={fund.scheme_name} /></Td>
-                <Td right accent={colorCls(capture.ucr != null ? capture.ucr - 100 : null)}>{fmtRatio(capture.ucr)}</Td>
-                <Td right accent={colorCls(capture.dcr != null ? 100 - capture.dcr : null)}>{fmtRatio(capture.dcr)}</Td>
-                <Td right accent={colorCls(capture.captureRatio != null ? capture.captureRatio - 1 : null)}>{fmtRatio(capture.captureRatio)}</Td>
-                <Td right>{fmt1(capture.upConsistPct)}</Td>
-                <Td right>{fmt1(capture.downConsistPct)}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* ── Observation Period Breakdown ──────────────────────────── */}
-      <SectionLabel>Observation Period Breakdown</SectionLabel>
+      {/* ── Upside / Downside Capture (monthly CAGR method) ───────── */}
+      <SectionLabel>Upside / Downside Capture</SectionLabel>
+      <p className="text-[10px] text-terminal-muted -mt-3">
+        Monthly CAGR method · non-overlapping month-end NAV returns · window-independent
+      </p>
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr>
               <Th>Fund</Th>
-              <Th right>Total Obs</Th>
-              <Th right>Up-Market</Th>
-              <Th right>Down-Market</Th>
+              <Th right>UCR</Th>
+              <Th right>DCR</Th>
+              <Th right>Ratio</Th>
+              <Th right>Up Mo.</Th>
+              <Th right>Dn Mo.</Th>
             </tr>
           </thead>
           <tbody>
-            {allStats.map(({ fund, color, capture }) => (
-              <tr key={fund.scheme_code} className="hover:bg-terminal-surface/60">
-                <Td><FundDot color={color} name={fund.scheme_name} /></Td>
-                <Td right>{capture.totalPeriods}</Td>
-                <Td right accent="text-blue-400">{capture.upPeriods}</Td>
-                <Td right accent="text-rose-400">{capture.downPeriods}</Td>
-              </tr>
-            ))}
+            {allStats.map(({ fund, color }) => {
+              const ff = computeFreefincalCaptureStats(data?.monthly_returns, fund);
+              return (
+                <tr key={fund.scheme_code} className="hover:bg-terminal-surface/60">
+                  <Td><FundDot color={color} name={fund.scheme_name} /></Td>
+                  <Td right accent={ff && !isNaN(ff.ucr) ? colorCls(ff.ucr - 100) : 'text-terminal-muted'}>
+                    {ff && !isNaN(ff.ucr) ? ff.ucr.toFixed(1) : '—'}
+                  </Td>
+                  <Td right accent={ff && !isNaN(ff.dcr) ? colorCls(100 - ff.dcr) : 'text-terminal-muted'}>
+                    {ff && !isNaN(ff.dcr) ? ff.dcr.toFixed(1) : '—'}
+                  </Td>
+                  <Td right accent={ff && !isNaN(ff.captureRatio) ? colorCls(ff.captureRatio - 1) : 'text-terminal-muted'}>
+                    {ff && !isNaN(ff.captureRatio) ? `${ff.captureRatio.toFixed(2)}x` : '—'}
+                  </Td>
+                  <Td right accent="text-blue-400">{ff ? ff.upMonths : '—'}</Td>
+                  <Td right accent="text-rose-400">{ff ? ff.downMonths : '—'}</Td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       {/* ── Down Market Alpha ─────────────────────────────────────── */}
       <SectionLabel>Down Market Alpha</SectionLabel>
+      <p className="text-[10px] text-terminal-muted -mt-3">
+        Average excess return (fund − benchmark) in {curWin.toUpperCase()} rolling periods where benchmark &lt; 0
+      </p>
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -336,51 +336,6 @@ const CaptureSection = ({ data, rfRate }) => {
           </tbody>
         </table>
       </div>
-
-      {/* ── Freefincal-style Capture Ratios ───────────────────────── */}
-      {allStats.some(({ fund }) => computeFreefincalCaptureStats(data?.monthly_returns, fund) !== null) && (
-        <>
-          <SectionLabel>Freefincal-style Capture Ratios</SectionLabel>
-          <p className="text-[10px] text-terminal-muted -mt-3">
-            Monthly CAGR method · non-overlapping month-end NAV returns · window-independent
-          </p>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  <Th>Fund</Th>
-                  <Th right>UCR</Th>
-                  <Th right>DCR</Th>
-                  <Th right>Ratio</Th>
-                  <Th right>Up Mo.</Th>
-                  <Th right>Dn Mo.</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {allStats.map(({ fund, color }) => {
-                  const ff = computeFreefincalCaptureStats(data?.monthly_returns, fund);
-                  return (
-                    <tr key={fund.scheme_code} className="hover:bg-terminal-surface/60">
-                      <Td><FundDot color={color} name={fund.scheme_name} /></Td>
-                      <Td right accent={ff && !isNaN(ff.ucr) ? colorCls(ff.ucr - 100) : 'text-terminal-muted'}>
-                        {ff && !isNaN(ff.ucr) ? ff.ucr.toFixed(1) : '—'}
-                      </Td>
-                      <Td right accent={ff && !isNaN(ff.dcr) ? colorCls(100 - ff.dcr) : 'text-terminal-muted'}>
-                        {ff && !isNaN(ff.dcr) ? ff.dcr.toFixed(1) : '—'}
-                      </Td>
-                      <Td right accent={ff && !isNaN(ff.captureRatio) ? colorCls(ff.captureRatio - 1) : 'text-terminal-muted'}>
-                        {ff && !isNaN(ff.captureRatio) ? `${ff.captureRatio.toFixed(2)}x` : '—'}
-                      </Td>
-                      <Td right accent="text-blue-400">{ff ? ff.upMonths : '—'}</Td>
-                      <Td right accent="text-rose-400">{ff ? ff.downMonths : '—'}</Td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
 
       <SectionLabel>Benchmark vs Fund Returns (per fund)</SectionLabel>      <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
         {allStats.map(({ fund, color, scatterData }) => {
@@ -964,14 +919,14 @@ const MonthlyHeatmapSection = ({ data }) => {
 };
 
 // ── KPI Summary Strip ──────────────────────────────────────────────────────────
-const KpiStrip = ({ data, analyticsData, rfRate }) => {
+const KpiStrip = ({ data, rfRate }) => {
   const avail = data?.benchmark_windows?.map((bw) => bw.window) ?? [];
   const curWin = avail.includes('3y') ? '3y' : (avail[0] ?? '3y');
   const benchWin = data?.benchmark_windows?.find((bw) => bw.window === curWin);
   const rfPct = rfPeriodPct(rfRate, benchWin?.window_days ?? 365, 'absolute');
   const chartData = buildChartData(data?.funds ?? [], benchWin, 'absolute');
   const allStats = computeAllStats(data?.funds ?? [], chartData, rfPct);
-  const kpis = computeKPIs(data?.funds ?? [], allStats, analyticsData);
+  const kpis = computeKPIs(data?.funds ?? [], allStats, data?.monthly_returns);
 
   if (kpis.length === 0) return null;
 
@@ -997,7 +952,7 @@ const TerminalChart = ({ data, analyticsData, analyticsLoading, loading, error, 
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* KPI strip - only show when data is loaded */}
       {!loading && !error && data && (
-        <KpiStrip data={data} analyticsData={analyticsData} rfRate={rfRate} />
+        <KpiStrip data={data} rfRate={rfRate} />
       )}
 
       {/* Main content area */}

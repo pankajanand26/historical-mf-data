@@ -1,7 +1,17 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import Fuse from 'fuse.js';
 import { useFundSearch } from '../../../shared/hooks/useFundSearch';
 import { useIndexFunds } from '../../../shared/hooks/useIndexFunds';
 import { WINDOWS, DATE_PRESETS, FUND_COLORS } from '../../../shared/utils/chartUtils';
+
+// Fuse.js config — tuned for short fund-name tokens
+const FUSE_OPTIONS = {
+  keys: ['scheme_name'],
+  threshold: 0.35,
+  distance: 200,
+  minMatchCharLength: 2,
+  shouldSort: true,
+};
 
 // ── Mini icon ──────────────────────────────────────────────────────────────────
 const Icon = ({ d, className = 'w-4 h-4' }) => (
@@ -101,7 +111,14 @@ const FundPopover = ({ selectedFunds, onAdd, onRemove }) => {
 const BenchmarkPopover = ({ selectedBenchmark, onSelect }) => {
   const { funds, loading } = useIndexFunds();
   const [filter, setFilter] = useState('');
-  const filtered = funds.filter((f) => !filter || f.scheme_name.toLowerCase().includes(filter.toLowerCase()));
+
+  // Build Fuse index once when funds list changes
+  const fuse = useMemo(() => new Fuse(funds, FUSE_OPTIONS), [funds]);
+
+  const filtered = useMemo(() => {
+    if (!filter.trim()) return funds;
+    return fuse.search(filter.trim()).map((r) => r.item);
+  }, [fuse, funds, filter]);
 
   return (
     <Popover
@@ -122,7 +139,7 @@ const BenchmarkPopover = ({ selectedBenchmark, onSelect }) => {
           type="text"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter…"
+          placeholder="Search (fuzzy)…"
           className="w-full px-2 py-1.5 text-xs bg-terminal-bg border border-terminal-border rounded text-terminal-text placeholder-terminal-muted outline-none focus:border-terminal-green mb-2"
         />
         <ul className="max-h-48 overflow-y-auto terminal-scrollbar">

@@ -515,7 +515,7 @@ export function milestoneHitRate(returnDistPct, requiredReturn) {
 
 // ─── KPI summary helpers (used by Terminal) ───────────────────────────────────
 
-export function computeKPIs(funds, allStats, analyticsData) {
+export function computeKPIs(funds, allStats, monthlyReturns) {
   const kpis = [];
 
   // Best performer by avg alpha
@@ -530,40 +530,20 @@ export function computeKPIs(funds, allStats, analyticsData) {
     });
   }
 
-  // Highest Sharpe
-  const withSharpe = allStats.filter((s) => !isNaN(s.vol.sharpeFund));
-  if (withSharpe.length) {
-    const best = withSharpe.reduce((a, b) => a.vol.sharpeFund > b.vol.sharpeFund ? a : b);
-    kpis.push({
-      label: 'Best Sharpe',
-      value: fmtRatio(best.vol.sharpeFund),
-      sub: shortNameMd(best.fund.scheme_name),
-      positive: best.vol.sharpeFund >= 0,
-    });
-  }
-
-  // Best capture ratio
-  const withCapture = allStats.filter((s) => !isNaN(s.capture.captureRatio));
-  if (withCapture.length) {
-    const best = withCapture.reduce((a, b) => a.capture.captureRatio > b.capture.captureRatio ? a : b);
-    kpis.push({
-      label: 'Best Capture',
-      value: `${fmtRatio(best.capture.captureRatio)}x`,
-      sub: shortNameMd(best.fund.scheme_name),
-      positive: best.capture.captureRatio >= 1,
-    });
-  }
-
-  // Deepest drawdown (from analytics)
-  if (analyticsData?.funds?.length) {
-    const worst = analyticsData.funds.reduce((a, b) =>
-      a.drawdown.max_drawdown < b.drawdown.max_drawdown ? a : b);
-    kpis.push({
-      label: 'Max Drawdown',
-      value: fmt1(worst.drawdown.max_drawdown),
-      sub: shortNameMd(worst.scheme_name),
-      positive: false,
-    });
+  // Best capture ratio (using Freefincal monthly CAGR method)
+  if (monthlyReturns) {
+    const withCapture = allStats
+      .map((s) => ({ ...s, ff: computeFreefincalCaptureStats(monthlyReturns, s.fund) }))
+      .filter((s) => s.ff && !isNaN(s.ff.captureRatio));
+    if (withCapture.length) {
+      const best = withCapture.reduce((a, b) => a.ff.captureRatio > b.ff.captureRatio ? a : b);
+      kpis.push({
+        label: 'Best Capture',
+        value: `${fmtRatio(best.ff.captureRatio)}x`,
+        sub: shortNameMd(best.fund.scheme_name),
+        positive: best.ff.captureRatio >= 1,
+      });
+    }
   }
 
   return kpis;
