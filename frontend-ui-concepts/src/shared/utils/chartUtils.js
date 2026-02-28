@@ -176,16 +176,18 @@ export function computeVolatilityStats(chartData, fund, rfPct) {
 export function computeCaptureStats(chartData, fund) {
   const key = `fund_${fund.scheme_code}`;
   const upFund = [], upBench = [], downFund = [], downBench = [];
-  let upConsistCount = 0, downConsistCount = 0;
+  let upConsistCount = 0, downConsistCount = 0, totalCount = 0, downAlphaSum = 0;
 
   for (const row of chartData) {
     const fv = row[key], bv = row.benchmark;
     if (fv == null || bv == null) continue;
+    totalCount++;
     if (bv > 0) {
       upFund.push(fv); upBench.push(bv);
       if (fv > bv) upConsistCount++;
     } else if (bv < 0) {
       downFund.push(fv); downBench.push(bv);
+      downAlphaSum += fv - bv;
       if (fv > bv) downConsistCount++;
     }
   }
@@ -201,9 +203,10 @@ export function computeCaptureStats(chartData, fund) {
   const captureRatio = !isNaN(ucr) && !isNaN(dcr) && dcr !== 0 ? ucr / dcr : NaN;
   const upConsistPct = upFund.length > 0 ? (upConsistCount / upFund.length) * 100 : NaN;
   const downConsistPct = downFund.length > 0 ? (downConsistCount / downFund.length) * 100 : NaN;
+  const downAlpha = downFund.length > 0 ? downAlphaSum / downFund.length : NaN;
 
   return { ucr, dcr, captureRatio, upConsistPct, downConsistPct,
-    upPeriods: upFund.length, downPeriods: downFund.length };
+    upPeriods: upFund.length, downPeriods: downFund.length, totalPeriods: totalCount, downAlpha };
 }
 
 export function buildScatterData(chartData, fund) {

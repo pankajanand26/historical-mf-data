@@ -229,6 +229,72 @@ const CaptureSection = ({ data }) => {
         </Card>
       </div>
 
+      {/* ── Observation Period Breakdown ──────────────────────────── */}
+      <div>
+        <SectionHeader>Observation Period Breakdown</SectionHeader>
+        <Card>
+          <table className="w-full">
+            <thead>
+              <tr>
+                <Th>Fund</Th>
+                <Th right>Total Obs</Th>
+                <Th right>Up-Market</Th>
+                <Th right>Down-Market</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {allStats.map(({ fund, color, capture }) => (
+                <tr key={fund.scheme_code} className="hover:bg-editorial-cream/50">
+                  <Td>
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                      <span>{shortName(fund.scheme_name)}</span>
+                    </div>
+                  </Td>
+                  <Td right>{capture.totalPeriods}</Td>
+                  <Td right accent="text-blue-600">{capture.upPeriods}</Td>
+                  <Td right accent="text-rose-600">{capture.downPeriods}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      </div>
+
+      {/* ── Down Market Alpha ─────────────────────────────────────── */}
+      <div>
+        <SectionHeader>Down Market Alpha</SectionHeader>
+        <Card>
+          <table className="w-full">
+            <thead>
+              <tr>
+                <Th>Fund</Th>
+                <Th right>Down Mkt Alpha</Th>
+                <Th right>Down Periods</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {allStats.map(({ fund, color, capture }) => (
+                <tr key={fund.scheme_code} className="hover:bg-editorial-cream/50">
+                  <Td>
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                      <span>{shortName(fund.scheme_name)}</span>
+                    </div>
+                  </Td>
+                  <Td right accent={isNaN(capture.downAlpha) ? 'text-editorial-navy/30' : capture.downAlpha >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+                    {isNaN(capture.downAlpha) ? '—' : `${capture.downAlpha >= 0 ? '+' : ''}${capture.downAlpha.toFixed(2)}%`}
+                  </Td>
+                  <Td right>
+                    {capture.downPeriods > 0 ? capture.downPeriods : <span className="text-editorial-navy/30">—</span>}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      </div>
+
       <div>
         <SectionHeader>Benchmark vs Fund Scatter</SectionHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">

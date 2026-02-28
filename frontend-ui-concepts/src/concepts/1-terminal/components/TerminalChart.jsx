@@ -259,6 +259,58 @@ const CaptureSection = ({ data }) => {
         </table>
       </div>
 
+      {/* ── Observation Period Breakdown ──────────────────────────── */}
+      <SectionLabel>Observation Period Breakdown</SectionLabel>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr>
+              <Th>Fund</Th>
+              <Th right>Total Obs</Th>
+              <Th right>Up-Market</Th>
+              <Th right>Down-Market</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {allStats.map(({ fund, color, capture }) => (
+              <tr key={fund.scheme_code} className="hover:bg-terminal-surface/60">
+                <Td><FundDot color={color} name={fund.scheme_name} /></Td>
+                <Td right>{capture.totalPeriods}</Td>
+                <Td right accent="text-blue-400">{capture.upPeriods}</Td>
+                <Td right accent="text-rose-400">{capture.downPeriods}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Down Market Alpha ─────────────────────────────────────── */}
+      <SectionLabel>Down Market Alpha</SectionLabel>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr>
+              <Th>Fund</Th>
+              <Th right>Down Mkt Alpha</Th>
+              <Th right>Down Periods</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {allStats.map(({ fund, color, capture }) => (
+              <tr key={fund.scheme_code} className="hover:bg-terminal-surface/60">
+                <Td><FundDot color={color} name={fund.scheme_name} /></Td>
+                <Td right accent={isNaN(capture.downAlpha) ? 'text-terminal-muted' : capture.downAlpha >= 0 ? 'text-terminal-green' : 'text-terminal-red'}>
+                  {isNaN(capture.downAlpha) ? '—' : `${capture.downAlpha >= 0 ? '+' : ''}${capture.downAlpha.toFixed(2)}%`}
+                </Td>
+                <Td right>
+                  {capture.downPeriods > 0 ? capture.downPeriods : <span className="text-terminal-muted">—</span>}
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <SectionLabel>Benchmark vs Fund Returns (per fund)</SectionLabel>
       <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
         {allStats.map(({ fund, color, scatterData }) => {
