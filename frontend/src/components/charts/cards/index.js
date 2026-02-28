@@ -8,3 +8,5 @@ export { default as SipPlannerCard } from './SipPlannerCard';
 export { default as ReverseSipCard } from './ReverseSipCard';
 export { default as RetirementCard } from './RetirementCard';
 export { default as MonthlyHeatmapCard } from './MonthlyHeatmapCard';
+export { default as LumpsumVsSipCard } from './LumpsumVsSipCard';
+export { default as EntryHeatmapCard } from './EntryHeatmapCard';

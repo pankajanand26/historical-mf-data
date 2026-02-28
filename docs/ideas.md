@@ -21,6 +21,13 @@
 | 10 | NFO / New Fund Warning | Utility | Low | Medium |
 | 11 | Tax Harvesting Helper | Utility | Medium | High |
 | 12 | Rebalancing Suggester | Utility | Medium | Medium |
+| 13 | PDF Report Export | Utility | Medium | High |
+| 14 | Fund Watchlist | Feature | Medium | High |
+| 15 | Goal Tracker | Goal-Based | High | High |
+| 16 | Volatility Regime Overlay | Visualization | Medium | Medium |
+| 17 | Dividend Reinvestment Toggle | Analysis | Low | Medium |
+| 18 | Risk-Adjusted Ranking | Analysis | Medium | High |
+| 19 | Mobile-Responsive Layout | UX | Medium | High |
 
 ---
 

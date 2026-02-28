@@ -6,7 +6,7 @@ import WindowSelector from './components/controls/WindowSelector';
 import DateRangePicker from './components/controls/DateRangePicker';
 import RfRateInput from './components/controls/RfRateInput';
 import RollingReturnChart from './components/charts/RollingReturnChart';
-import { TabNav, ExportButton, KpiStrip } from './components/ui';
+import { TabNav, ExportButton, KpiStrip, NfoWarning } from './components/ui';
 import { useRollingReturns } from './hooks/useRollingReturns';
 import { useFundAnalytics } from './hooks/useFundAnalytics';
 import { DEFAULT_RF_RATE } from './utils/constants';
@@ -195,6 +195,7 @@ const App = () => {
 
             {data && !loading && (
               <>
+                <NfoWarning data={data} />
                 <TabNav activeTab={activeTab} setActiveTab={setActiveTab} />
                 <RollingReturnChart
                   data={data}

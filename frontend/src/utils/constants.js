@@ -48,6 +48,7 @@ export const TABS = [
   { id: 'scorecard', label: 'Score' },
   { id: 'distribution', label: 'Dist' },
   { id: 'monthly', label: 'Monthly' },
+  { id: 'entry-heatmap', label: 'Entry' },
 ];
 
 // SIP tools grouped separately (accessed via dropdown)
@@ -55,4 +56,5 @@ export const SIP_TABS = [
   { id: 'sip', label: 'SIP Planner' },
   { id: 'reverse-sip', label: 'Reverse SIP' },
   { id: 'retirement', label: 'Retirement' },
+  { id: 'lumpsum-sip', label: 'Lumpsum vs SIP' },
 ];

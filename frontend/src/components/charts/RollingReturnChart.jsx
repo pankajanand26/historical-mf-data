@@ -19,6 +19,8 @@ import {
   ReverseSipCard,
   RetirementCard,
   MonthlyHeatmapCard,
+  LumpsumVsSipCard,
+  EntryHeatmapCard,
 } from './cards';
 
 const RollingReturnChart = ({
@@ -190,6 +192,12 @@ const RollingReturnChart = ({
 
       case 'monthly':
         return <MonthlyHeatmapCard data={data} />;
+
+      case 'lumpsum-sip':
+        return <LumpsumVsSipCard data={data} />;
+
+      case 'entry-heatmap':
+        return <EntryHeatmapCard data={data} />;
 
       default:
         return null;

@@ -30,6 +30,8 @@ const SECTIONS = [
   { id: 'monthly', label: '08 MONTHLY' },
   { id: 'reverse-sip', label: '09 REV SIP' },
   { id: 'retirement', label: '10 RETIRE' },
+  { id: 'lumpsum-sip', label: '11 L vs SIP' },
+  { id: 'entry-heatmap', label: '12 ENTRY' },
 ];
 
 // ── Shared table primitives ────────────────────────────────────────────────────
@@ -374,6 +376,41 @@ const DrawdownSection = ({ data, analyticsData, analyticsLoading, rfRate, active
   const chartData = useMemo(() => buildChartData(data?.funds ?? [], benchWin, 'absolute'), [data, benchWin]);
   const allStats = useMemo(() => computeAllStats(data?.funds ?? [], chartData, rfPct), [data, chartData, rfPct]);
 
+  // Build combined drawdown data for underwater chart
+  const ddChartData = useMemo(() => {
+    if (!allStats.length) return [];
+    const refSeries = allStats[0]?.ddSeries ?? [];
+    if (!refSeries.length) return [];
+    return refSeries.map((row, idx) => {
+      const combined = { date: row.date, benchmarkDD: row.benchmarkDD };
+      allStats.forEach((stat) => {
+        const ddRow = stat.ddSeries[idx];
+        if (ddRow) combined[`fund_${stat.fund.scheme_code}_dd`] = ddRow.fundDD;
+      });
+      return combined;
+    });
+  }, [allStats]);
+
+  // Calculate underwater statistics
+  const underwaterStats = useMemo(() => allStats.map((stat) => {
+    const series = stat.ddSeries ?? [];
+    const total = series.length;
+    const underwater = series.filter((d) => d.fundDD < -1).length;
+    const deep = series.filter((d) => d.fundDD < -10).length;
+    const avgDD = total > 0 ? series.reduce((s, d) => s + d.fundDD, 0) / total : 0;
+    let maxStretch = 0, streak = 0;
+    for (const d of series) {
+      if (d.fundDD < -1) { streak++; maxStretch = Math.max(maxStretch, streak); }
+      else streak = 0;
+    }
+    return {
+      fund: stat.fund, color: stat.color,
+      underwaterPct: total ? (underwater / total) * 100 : 0,
+      deepPct: total ? (deep / total) * 100 : 0,
+      avgDD, maxStretch,
+    };
+  }), [allStats]);
+
   if (analyticsLoading) return <p className="text-terminal-muted text-xs">Loading drawdown data…</p>;
   if (!analyticsData) return <p className="text-terminal-muted text-xs">No drawdown data available.</p>;
 
@@ -384,6 +421,73 @@ const DrawdownSection = ({ data, analyticsData, analyticsLoading, rfRate, active
 
   return (
     <div className="space-y-5">
+      {/* Underwater Chart */}
+      {ddChartData.length > 0 && (
+        <>
+          <SectionLabel>Underwater Chart</SectionLabel>
+          <p className="text-[10px] text-terminal-muted -mt-3 mb-2">
+            Shows when NAV is below its all-time high. Red area = drawdown from peak.
+          </p>
+          <ResponsiveContainer width="100%" height={180}>
+            <AreaChart data={ddChartData} margin={{ top: 5, right: 10, bottom: 5, left: 12 }}>
+              <defs>
+                <linearGradient id="uwGradT" x1="0" y1="1" x2="0" y2="0">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity={0.8} />
+                  <stop offset="100%" stopColor="#ef4444" stopOpacity={0.15} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="2 4" stroke={GRID} />
+              <XAxis dataKey="date" tickFormatter={tickFormatter} tick={TICK_SM} tickLine={false} />
+              <YAxis domain={['auto', 0]} tickFormatter={(v) => `${v.toFixed(0)}%`} tick={TICK_SM} tickLine={false} axisLine={false} width={38} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => `${v?.toFixed(2)}%`} />
+              <ReferenceLine y={0} stroke="#22c55e" strokeWidth={2} />
+              {allStats.slice(0, 1).map((stat) => (
+                <Area key={stat.fund.scheme_code} type="monotone" dataKey={`fund_${stat.fund.scheme_code}_dd`}
+                  name={shortName(stat.fund.scheme_name)} stroke="#ef4444" fill="url(#uwGradT)" strokeWidth={1} dot={false} baseValue={0} />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        </>
+      )}
+
+      {/* Underwater Statistics */}
+      {underwaterStats.length > 0 && (
+        <>
+          <SectionLabel>Time Underwater</SectionLabel>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <Th>Fund</Th>
+                  <Th right>Underwater</Th>
+                  <Th right>Deep (&gt;10%)</Th>
+                  <Th right>Avg DD</Th>
+                  <Th right>Max Streak</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {underwaterStats.map(({ fund, color, underwaterPct, deepPct, avgDD, maxStretch }) => (
+                  <tr key={fund.scheme_code} className="hover:bg-terminal-surface/60">
+                    <Td><FundDot color={color} name={fund.scheme_name} /></Td>
+                    <Td right>
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-12 bg-terminal-border rounded-full h-1">
+                          <div className="bg-terminal-red h-1 rounded-full" style={{ width: `${Math.min(100, underwaterPct)}%` }} />
+                        </div>
+                        <span className="text-xs">{underwaterPct.toFixed(0)}%</span>
+                      </div>
+                    </Td>
+                    <Td right accent="text-terminal-red">{deepPct.toFixed(0)}%</Td>
+                    <Td right>{avgDD.toFixed(1)}%</Td>
+                    <Td right accent="text-terminal-muted">{maxStretch}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
       <SectionLabel>Drawdown Statistics</SectionLabel>
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -1238,6 +1342,494 @@ const RetirementSection = ({ data, activeWindow }) => {
   );
 };
 
+// ── Lumpsum vs SIP Comparison section ──────────────────────────────────────────
+const LumpsumVsSipSection = ({ data }) => {
+  const [investment, setInvestment] = useState(100000);
+  const [periodYears, setPeriodYears] = useState(5);
+  const [activeFund, setActiveFund] = useState(null);
+  
+  const funds = data?.funds ?? [];
+  const monthlyReturns = data?.monthly_returns;
+  
+  // Default to first fund if none selected
+  const selectedFundCode = activeFund ?? funds[0]?.scheme_code ?? 'benchmark';
+  const selectedKey = selectedFundCode === 'benchmark' ? 'benchmark' : `fund_${selectedFundCode}`;
+  
+  const fundOptions = [
+    { key: 'benchmark', name: data?.benchmark_name ?? 'Benchmark', color: BENCHMARK_COLOR, code: 'benchmark' },
+    ...funds.map((f, i) => ({ key: `fund_${f.scheme_code}`, name: f.scheme_name, color: FUND_COLORS[i % FUND_COLORS.length], code: f.scheme_code })),
+  ];
+
+  // Compute lumpsum vs SIP comparison
+  const comparison = useMemo(() => {
+    if (!monthlyReturns?.[selectedKey]) return null;
+    
+    const monthlyData = monthlyReturns[selectedKey];
+    if (!monthlyData?.length) return null;
+    
+    const sorted = [...monthlyData].sort((a, b) => a.date.localeCompare(b.date));
+    const periodMonths = periodYears * 12;
+    
+    if (sorted.length < periodMonths) return null;
+    
+    const sipMonthly = investment / periodMonths;
+    const results = [];
+    
+    for (let startIdx = 0; startIdx <= sorted.length - periodMonths; startIdx++) {
+      const periodData = sorted.slice(startIdx, startIdx + periodMonths);
+      const startDate = periodData[0].date;
+      const endDate = periodData[periodMonths - 1].date;
+      
+      // Lumpsum: invest all at start
+      let lumpsumValue = investment;
+      for (const month of periodData) {
+        lumpsumValue *= (1 + month.value);
+      }
+      
+      // SIP: invest monthly
+      let sipValue = 0;
+      for (let m = 0; m < periodMonths; m++) {
+        let monthInvestment = sipMonthly;
+        for (let r = m; r < periodMonths; r++) {
+          monthInvestment *= (1 + periodData[r].value);
+        }
+        sipValue += monthInvestment;
+      }
+      
+      const lumpsumCAGR = (Math.pow(lumpsumValue / investment, 1 / periodYears) - 1) * 100;
+      const sipCAGR = (Math.pow(sipValue / investment, 1 / periodYears) - 1) * 100;
+      
+      results.push({
+        startDate, endDate,
+        lumpsumValue: Math.round(lumpsumValue),
+        sipValue: Math.round(sipValue),
+        lumpsumCAGR, sipCAGR,
+        winner: lumpsumValue > sipValue ? 'lumpsum' : sipValue > lumpsumValue ? 'sip' : 'tie',
+      });
+    }
+    
+    const lumpsumWins = results.filter(r => r.winner === 'lumpsum').length;
+    const sipWins = results.filter(r => r.winner === 'sip').length;
+    const avgLumpsum = results.reduce((s, r) => s + r.lumpsumValue, 0) / results.length;
+    const avgSip = results.reduce((s, r) => s + r.sipValue, 0) / results.length;
+    const avgLumpsumCAGR = results.reduce((s, r) => s + r.lumpsumCAGR, 0) / results.length;
+    const avgSipCAGR = results.reduce((s, r) => s + r.sipCAGR, 0) / results.length;
+    
+    return {
+      results,
+      summary: {
+        totalPeriods: results.length,
+        lumpsumWins, sipWins,
+        lumpsumWinPct: (lumpsumWins / results.length) * 100,
+        sipWinPct: (sipWins / results.length) * 100,
+        avgLumpsum: Math.round(avgLumpsum),
+        avgSip: Math.round(avgSip),
+        avgLumpsumCAGR, avgSipCAGR,
+        overallWinner: lumpsumWins > sipWins ? 'lumpsum' : sipWins > lumpsumWins ? 'sip' : 'tie',
+      },
+    };
+  }, [monthlyReturns, selectedKey, investment, periodYears]);
+
+  // Build chart data by starting year
+  const chartData = useMemo(() => {
+    if (!comparison?.results?.length) return [];
+    const byYear = {};
+    for (const r of comparison.results) {
+      const year = r.startDate.split('-')[0];
+      if (!byYear[year]) byYear[year] = [];
+      byYear[year].push(r);
+    }
+    return Object.entries(byYear).map(([year, periods]) => ({
+      year,
+      lumpsumAvg: Math.round(periods.reduce((s, p) => s + p.lumpsumValue, 0) / periods.length),
+      sipAvg: Math.round(periods.reduce((s, p) => s + p.sipValue, 0) / periods.length),
+      lumpsumWins: periods.filter(p => p.winner === 'lumpsum').length,
+      sipWins: periods.filter(p => p.winner === 'sip').length,
+    }));
+  }, [comparison]);
+
+  if (!monthlyReturns) {
+    return <p className="text-terminal-muted text-sm">No monthly returns data available.</p>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-terminal-muted">Investment ₹</span>
+          <input type="number" value={investment}
+            onChange={(e) => setInvestment(Math.max(10000, parseInt(e.target.value) || 100000))}
+            className="w-28 px-2 py-1 text-xs bg-terminal-bg border border-terminal-border rounded text-terminal-text outline-none focus:border-terminal-amber" />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-terminal-muted">Period</span>
+          <select value={periodYears} onChange={(e) => setPeriodYears(parseInt(e.target.value))}
+            className="px-2 py-1 text-xs bg-terminal-bg border border-terminal-border rounded text-terminal-text outline-none focus:border-terminal-amber">
+            {[1, 2, 3, 5, 7, 10].map((y) => <option key={y} value={y}>{y}Y</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Fund selector */}
+      <div className="flex gap-1 flex-wrap">
+        {fundOptions.map((opt) => (
+          <button key={opt.key} onClick={() => setActiveFund(opt.code)}
+            className={`px-2.5 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
+              selectedKey === opt.key ? 'bg-terminal-surface border border-terminal-amber' : 'text-terminal-muted border border-terminal-border hover:border-terminal-amber'
+            }`}>
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: opt.color }} />
+            <span className="max-w-[100px] truncate">{shortNameMd(opt.name)}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Summary Statistics */}
+      {comparison?.summary && (
+        <>
+          <SectionLabel>Win Rate Comparison</SectionLabel>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-blue-900/30 border border-blue-700/50 rounded px-3 py-2">
+              <p className="text-[9px] text-blue-400 uppercase tracking-wider font-semibold">Lumpsum Wins</p>
+              <p className="text-xl font-mono font-bold text-blue-300">{comparison.summary.lumpsumWinPct.toFixed(0)}%</p>
+              <p className="text-[10px] text-blue-400/70">{comparison.summary.lumpsumWins} of {comparison.summary.totalPeriods}</p>
+            </div>
+            <div className="bg-emerald-900/30 border border-emerald-700/50 rounded px-3 py-2">
+              <p className="text-[9px] text-emerald-400 uppercase tracking-wider font-semibold">SIP Wins</p>
+              <p className="text-xl font-mono font-bold text-emerald-300">{comparison.summary.sipWinPct.toFixed(0)}%</p>
+              <p className="text-[10px] text-emerald-400/70">{comparison.summary.sipWins} of {comparison.summary.totalPeriods}</p>
+            </div>
+            <div className="bg-terminal-surface rounded px-3 py-2">
+              <p className="text-[9px] text-terminal-muted uppercase tracking-wider font-semibold">Avg Lumpsum</p>
+              <p className="text-lg font-mono font-bold text-terminal-text">{fmtLakh(comparison.summary.avgLumpsum)}</p>
+              <p className="text-[10px] text-terminal-muted">CAGR: {comparison.summary.avgLumpsumCAGR.toFixed(1)}%</p>
+            </div>
+            <div className="bg-terminal-surface rounded px-3 py-2">
+              <p className="text-[9px] text-terminal-muted uppercase tracking-wider font-semibold">Avg SIP</p>
+              <p className="text-lg font-mono font-bold text-terminal-text">{fmtLakh(comparison.summary.avgSip)}</p>
+              <p className="text-[10px] text-terminal-muted">CAGR: {comparison.summary.avgSipCAGR.toFixed(1)}%</p>
+            </div>
+          </div>
+
+          {/* Winner Banner */}
+          <div className={`rounded px-4 py-3 flex items-center gap-3 ${
+            comparison.summary.overallWinner === 'lumpsum' 
+              ? 'bg-blue-900/40 border border-blue-600/50' 
+              : comparison.summary.overallWinner === 'sip'
+                ? 'bg-emerald-900/40 border border-emerald-600/50'
+                : 'bg-terminal-surface border border-terminal-border'
+          }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg ${
+              comparison.summary.overallWinner === 'lumpsum' 
+                ? 'bg-blue-600' 
+                : comparison.summary.overallWinner === 'sip'
+                  ? 'bg-emerald-600'
+                  : 'bg-terminal-muted'
+            }`}>
+              {comparison.summary.overallWinner === 'lumpsum' ? '💰' : comparison.summary.overallWinner === 'sip' ? '📈' : '⚖️'}
+            </div>
+            <div>
+              <p className={`font-semibold ${
+                comparison.summary.overallWinner === 'lumpsum' 
+                  ? 'text-blue-300' 
+                  : comparison.summary.overallWinner === 'sip'
+                    ? 'text-emerald-300'
+                    : 'text-terminal-text'
+              }`}>
+                {comparison.summary.overallWinner === 'lumpsum' 
+                  ? 'Lumpsum wins more often!' 
+                  : comparison.summary.overallWinner === 'sip'
+                    ? 'SIP wins more often!'
+                    : 'It\'s a tie!'}
+              </p>
+              <p className="text-xs text-terminal-muted">
+                Over {comparison.summary.totalPeriods} rolling {periodYears}-year periods
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Chart */}
+      {chartData.length > 0 && (
+        <>
+          <SectionLabel>Outcome by Entry Year</SectionLabel>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData} margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
+              <CartesianGrid strokeDasharray="2 4" stroke={GRID} />
+              <XAxis dataKey="year" tick={TICK_STYLE} tickLine={false} />
+              <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} tick={TICK_STYLE} tickLine={false} axisLine={false} width={45} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => fmtLakh(v)} />
+              <Legend wrapperStyle={{ fontSize: 11, color: '#8b949e' }} />
+              <ReferenceLine y={investment} stroke="#6b7280" strokeDasharray="4 2" />
+              <Bar dataKey="lumpsumAvg" name="Lumpsum" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="sipAvg" name="SIP" fill="#10b981" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </>
+      )}
+
+      {/* Explanation */}
+      <div className="bg-amber-900/20 border border-amber-700/30 rounded px-3 py-2 text-[10px] text-amber-300/80">
+        <p className="font-semibold text-amber-400 mb-1">How this works:</p>
+        <ul className="list-disc list-inside space-y-0.5">
+          <li><strong>Lumpsum:</strong> Entire {fmtLakh(investment)} invested at period start</li>
+          <li><strong>SIP:</strong> {fmtLakh(Math.round(investment / (periodYears * 12)))}/month over {periodYears} years</li>
+          <li>Lumpsum typically wins in bull markets; SIP wins in volatile/falling markets</li>
+        </ul>
+      </div>
+
+      {!comparison && (
+        <p className="text-terminal-muted text-sm text-center py-4">
+          Insufficient data for {periodYears}-year comparison. Try a shorter period.
+        </p>
+      )}
+    </div>
+  );
+};
+
+// ── Entry Date Heatmap section ─────────────────────────────────────────────────
+const EntryHeatmapSection = ({ data }) => {
+  const [activeFund, setActiveFund] = useState(null);
+  const funds = data?.funds ?? [];
+  
+  // Default to first fund if none selected
+  const selectedFundCode = activeFund ?? funds[0]?.scheme_code ?? null;
+  const selectedFund = funds.find(f => f.scheme_code === selectedFundCode);
+  
+  const fundOptions = funds.map((f, i) => ({
+    code: f.scheme_code,
+    name: f.scheme_name,
+    color: FUND_COLORS[i % FUND_COLORS.length],
+    fund: f,
+  }));
+
+  // Build entry date heatmap from rolling return windows
+  const heatmapData = useMemo(() => {
+    if (!selectedFund?.windows?.length) return null;
+    
+    const windowOrder = ['1y', '3y', '5y', '10y'];
+    const availableWindows = selectedFund.windows
+      .filter(w => windowOrder.includes(w.window))
+      .sort((a, b) => windowOrder.indexOf(a.window) - windowOrder.indexOf(b.window));
+    
+    if (!availableWindows.length) return null;
+    
+    // Group returns by entry year
+    const matrix = {};
+    const allYears = new Set();
+    
+    for (const windowData of availableWindows) {
+      const windowId = windowData.window;
+      const windowDays = windowData.window_days;
+      
+      for (const point of windowData.data || []) {
+        const year = point.date.split('-')[0];
+        allYears.add(year);
+        
+        if (!matrix[year]) matrix[year] = {};
+        
+        // Convert rolling return to CAGR
+        const value = point.value;
+        const cagr = windowDays > 365 
+          ? (Math.pow(1 + value, 365 / windowDays) - 1) * 100
+          : value * 100;
+        
+        if (matrix[year][windowId] == null) {
+          matrix[year][windowId] = { sum: cagr, count: 1 };
+        } else {
+          matrix[year][windowId].sum += cagr;
+          matrix[year][windowId].count += 1;
+        }
+      }
+    }
+    
+    // Average out the values
+    for (const year of Object.keys(matrix)) {
+      for (const win of Object.keys(matrix[year])) {
+        const { sum, count } = matrix[year][win];
+        matrix[year][win] = sum / count;
+      }
+    }
+    
+    const years = Array.from(allYears).sort();
+    const windows = availableWindows.map(w => w.window);
+    
+    return { years, windows, matrix };
+  }, [selectedFund]);
+
+  // Calculate summary statistics
+  const summaryStats = useMemo(() => {
+    if (!heatmapData?.matrix) return null;
+    
+    const stats = {};
+    for (const win of heatmapData.windows) {
+      const values = heatmapData.years
+        .map(y => heatmapData.matrix[y]?.[win])
+        .filter(v => v != null && !isNaN(v));
+      
+      if (values.length) {
+        const sorted = [...values].sort((a, b) => a - b);
+        stats[win] = {
+          min: sorted[0],
+          max: sorted[sorted.length - 1],
+          avg: values.reduce((s, v) => s + v, 0) / values.length,
+          median: sorted[Math.floor(sorted.length / 2)],
+          negative: values.filter(v => v < 0).length,
+          total: values.length,
+        };
+      }
+    }
+    return stats;
+  }, [heatmapData]);
+
+  // Get heatmap color for terminal dark theme
+  const getHeatmapColor = (value) => {
+    if (value == null || isNaN(value)) return 'bg-terminal-surface text-terminal-muted';
+    const clamped = Math.max(-20, Math.min(30, value));
+    
+    if (clamped < 0) {
+      const intensity = Math.abs(clamped) / 20;
+      if (intensity > 0.7) return 'bg-red-600 text-red-100';
+      if (intensity > 0.4) return 'bg-red-700 text-red-200';
+      if (intensity > 0.2) return 'bg-red-800 text-red-200';
+      return 'bg-red-900 text-red-300';
+    } else if (clamped < 8) {
+      if (clamped < 2) return 'bg-amber-900 text-amber-300';
+      if (clamped < 5) return 'bg-amber-800 text-amber-200';
+      return 'bg-yellow-700 text-yellow-200';
+    } else {
+      if (clamped < 12) return 'bg-emerald-800 text-emerald-200';
+      if (clamped < 16) return 'bg-emerald-700 text-emerald-100';
+      if (clamped < 22) return 'bg-emerald-600 text-emerald-100';
+      return 'bg-emerald-500 text-white';
+    }
+  };
+
+  const windowLabel = (w) => {
+    const labels = { '1y': '1Y', '3y': '3Y', '5y': '5Y', '10y': '10Y' };
+    return labels[w] || w.toUpperCase();
+  };
+
+  if (!funds.length) {
+    return <p className="text-terminal-muted text-sm">Select funds to view entry date analysis.</p>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Fund selector */}
+      <div className="flex gap-1 flex-wrap">
+        {fundOptions.map((opt) => (
+          <button key={opt.code} onClick={() => setActiveFund(opt.code)}
+            className={`px-2.5 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
+              selectedFundCode === opt.code ? 'bg-terminal-surface border border-terminal-amber' : 'text-terminal-muted border border-terminal-border hover:border-terminal-amber'
+            }`}>
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: opt.color }} />
+            <span className="max-w-[100px] truncate">{shortNameMd(opt.name)}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Heatmap table */}
+      {heatmapData && heatmapData.years.length > 0 ? (
+        <>
+          <SectionLabel>CAGR by Entry Year × Holding Period</SectionLabel>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <Th>Year</Th>
+                  {heatmapData.windows.map((w) => <Th key={w} right>{windowLabel(w)}</Th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {heatmapData.years.map((year) => (
+                  <tr key={year} className="hover:bg-terminal-surface/30">
+                    <Td accent="text-terminal-amber font-semibold">{year}</Td>
+                    {heatmapData.windows.map((win) => {
+                      const value = heatmapData.matrix[year]?.[win];
+                      const colorClass = getHeatmapColor(value);
+                      return (
+                        <td key={win} className="px-1 py-1 text-center">
+                          {value != null ? (
+                            <span className={`inline-block w-full px-2 py-1 rounded text-[10px] font-mono ${colorClass}`}>
+                              {value >= 0 ? '+' : ''}{value.toFixed(1)}%
+                            </span>
+                          ) : (
+                            <span className="inline-block w-full px-2 py-1 rounded text-[10px] text-terminal-muted">—</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <p className="text-terminal-muted text-sm text-center py-4">No heatmap data available for selected fund.</p>
+      )}
+
+      {/* Summary statistics */}
+      {summaryStats && (
+        <>
+          <SectionLabel>Window Summary Statistics</SectionLabel>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {heatmapData?.windows.map((win) => {
+              const stats = summaryStats[win];
+              if (!stats) return null;
+              return (
+                <div key={win} className="bg-terminal-surface rounded px-3 py-2">
+                  <p className="text-[9px] text-terminal-amber uppercase tracking-wider font-semibold mb-1">{windowLabel(win)}</p>
+                  <div className="space-y-0.5 text-[10px]">
+                    <div className="flex justify-between">
+                      <span className="text-terminal-muted">Min:</span>
+                      <span className={stats.min < 0 ? 'text-terminal-red' : 'text-terminal-green'}>{stats.min.toFixed(1)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-terminal-muted">Median:</span>
+                      <span className={stats.median < 0 ? 'text-terminal-red' : 'text-terminal-green'}>{stats.median.toFixed(1)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-terminal-muted">Max:</span>
+                      <span className="text-terminal-green">{stats.max.toFixed(1)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-terminal-muted">Neg:</span>
+                      <span className={stats.negative > 0 ? 'text-terminal-red' : 'text-terminal-muted'}>{stats.negative}/{stats.total}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Legend */}
+      <div className="flex items-center gap-1 text-[10px] text-terminal-muted flex-wrap">
+        <span>Scale:</span>
+        <span className="px-1.5 py-0.5 rounded bg-red-600 text-red-100">&lt;-10%</span>
+        <span className="px-1.5 py-0.5 rounded bg-red-800 text-red-200">-5 to 0%</span>
+        <span className="px-1.5 py-0.5 rounded bg-amber-800 text-amber-200">0 to 5%</span>
+        <span className="px-1.5 py-0.5 rounded bg-emerald-700 text-emerald-100">8 to 15%</span>
+        <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-white">&gt;15%</span>
+      </div>
+
+      {/* Explanation */}
+      <div className="bg-blue-900/20 border border-blue-700/30 rounded px-3 py-2 text-[10px] text-blue-300/80">
+        <p className="font-semibold text-blue-400 mb-1">How to read:</p>
+        <ul className="list-disc list-inside space-y-0.5">
+          <li>Rows = entry year, Columns = holding period</li>
+          <li>Cell shows CAGR if you entered that year and held for that period</li>
+          <li>Longer holding periods typically show less red (more consistency)</li>
+        </ul>
+      </div>
+    </div>
+  );
+};
+
 // ── KPI Summary Strip ──────────────────────────────────────────────────────────
 const KpiStrip = ({ data, rfRate, activeWindow, setActiveWindow }) => {
   const avail = data?.benchmark_windows?.map((bw) => bw.window) ?? [];
@@ -1279,6 +1871,45 @@ const KpiStrip = ({ data, rfRate, activeWindow, setActiveWindow }) => {
   );
 };
 
+// ── NFO Warning Banner ─────────────────────────────────────────────────────────
+const NfoWarning = ({ data }) => {
+  if (!data?.funds?.length) return null;
+
+  const warnings = data.funds
+    .map((fund) => {
+      const windows = fund.windows ?? [];
+      const threeYWindow = windows.find((w) => w.window === '3y');
+      const threeYDataPoints = threeYWindow?.data?.length ?? 0;
+      const hasInsufficientData = threeYDataPoints < 12;
+      if (hasInsufficientData) {
+        return { name: fund.scheme_name, dataPoints: threeYDataPoints };
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  if (warnings.length === 0) return null;
+
+  return (
+    <div className="mb-4 px-4 py-3 bg-amber-900/30 border border-amber-600/50 rounded">
+      <div className="flex items-start gap-3">
+        <span className="text-amber-500 text-lg">⚠</span>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-amber-400">Limited Historical Data</p>
+          <div className="mt-1 text-xs text-amber-300/80 space-y-0.5">
+            {warnings.map((w, i) => (
+              <p key={i}><span className="font-medium">{shortName(w.name)}</span> has limited data for 3Y window.</p>
+            ))}
+          </div>
+          <p className="mt-1 text-[10px] text-amber-500/70">
+            Consider using 1Y windows for newer funds.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Main chart component ───────────────────────────────────────────────────────
 const TerminalChart = ({ data, analyticsData, analyticsLoading, loading, error, activeSection, onSectionChange, hasData, rfRate }) => {
   const [activeWindow, setActiveWindow] = useState('3y');
@@ -1311,6 +1942,7 @@ const TerminalChart = ({ data, analyticsData, analyticsLoading, loading, error, 
         )}
         {!loading && !error && data && (
           <>
+            <NfoWarning data={data} />
             {activeSection === 'returns' && <ReturnsSection data={data} rfRate={rfRate} activeWindow={activeWindow} setActiveWindow={setActiveWindow} />}
             {activeSection === 'risk' && <RiskSection data={data} rfRate={rfRate} activeWindow={activeWindow} />}
             {activeSection === 'capture' && <CaptureSection data={data} rfRate={rfRate} activeWindow={activeWindow} />}
@@ -1321,6 +1953,8 @@ const TerminalChart = ({ data, analyticsData, analyticsLoading, loading, error, 
             {activeSection === 'monthly' && <MonthlyHeatmapSection data={data} />}
             {activeSection === 'reverse-sip' && <ReverseSipSection data={data} activeWindow={activeWindow} />}
             {activeSection === 'retirement' && <RetirementSection data={data} activeWindow={activeWindow} />}
+            {activeSection === 'lumpsum-sip' && <LumpsumVsSipSection data={data} />}
+            {activeSection === 'entry-heatmap' && <EntryHeatmapSection data={data} />}
           </>
         )}
       </div>

@@ -4,3 +4,4 @@ export { default as NeutralValue } from './NeutralValue';
 export { default as TabNav } from './TabNav';
 export { default as ExportButton } from './ExportButton';
 export { default as KpiStrip } from './KpiStrip';
+export { default as NfoWarning } from './NfoWarning';
