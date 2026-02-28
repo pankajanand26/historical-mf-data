@@ -10,3 +10,5 @@ export { default as RetirementCard } from './RetirementCard';
 export { default as MonthlyHeatmapCard } from './MonthlyHeatmapCard';
 export { default as LumpsumVsSipCard } from './LumpsumVsSipCard';
 export { default as EntryHeatmapCard } from './EntryHeatmapCard';
+export { default as TerImpactCard } from './TerImpactCard';
+export { default as RankingCard } from './RankingCard';

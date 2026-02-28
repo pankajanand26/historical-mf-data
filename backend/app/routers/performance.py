@@ -26,6 +26,18 @@ from app.services.rolling_returns import (
 from app.services.analytics import load_nav_for_analytics, compute_max_drawdown
 from app.services.benchmarking import get_scheme_name
 from app.config import RISK_FREE_RATE
+from app.database import execute_query
+
+
+def _get_ter(scheme_code: int) -> float | None:
+    """Return applicable_ter (%) for a scheme, or None if not in ter_data."""
+    rows = execute_query(
+        "SELECT applicable_ter FROM ter_data WHERE scheme_code = ?",
+        (scheme_code,),
+    )
+    if rows and rows[0]["applicable_ter"] is not None:
+        return rows[0]["applicable_ter"]
+    return None
 
 router = APIRouter(prefix="/api/performance", tags=["Performance"])
 
@@ -138,6 +150,7 @@ def get_rolling_returns(request: RollingReturnRequest):
                 scheme_code=sc,
                 scheme_name=scheme_names[sc],
                 windows=window_results,
+                ter=_get_ter(sc),
             )
         )
 

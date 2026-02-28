@@ -32,6 +32,8 @@ const SECTIONS = [
   { id: 'retirement', label: '10 RETIRE' },
   { id: 'lumpsum-sip', label: '11 L vs SIP' },
   { id: 'entry-heatmap', label: '12 ENTRY' },
+  { id: 'ter-impact', label: '13 TER' },
+  { id: 'ranking', label: '14 RANK' },
 ];
 
 // ── Shared table primitives ────────────────────────────────────────────────────
@@ -1910,6 +1912,345 @@ const NfoWarning = ({ data }) => {
   );
 };
 
+// ── TER Impact section ─────────────────────────────────────────────────────────
+const TerImpactSection = ({ data }) => {
+  const funds = data?.funds ?? [];
+  const firstTer = funds[0]?.ter ?? 1.0;
+
+  const [grossReturn, setGrossReturn] = useState(12);
+  const [monthlySIP, setMonthlySIP]   = useState(10000);
+  const [lumpsum, setLumpsum]         = useState(0);
+  const [years, setYears]             = useState(20);
+  const [ter1, setTer1] = useState(parseFloat((firstTer ?? 0.5).toFixed(2)));
+  const [ter2, setTer2] = useState(parseFloat(((firstTer ?? 1.0) + 0.5).toFixed(2)));
+  const [ter3, setTer3] = useState(parseFloat(((firstTer ?? 1.0) + 1.0).toFixed(2)));
+
+  // local sipFV
+  const sipFV = (annualReturn, P, months) => {
+    if (months <= 0) return 0;
+    const r = Math.pow(1 + annualReturn, 1 / 12) - 1;
+    if (Math.abs(r) < 1e-10) return P * months;
+    return P * ((Math.pow(1 + r, months) - 1) / r) * (1 + r);
+  };
+
+  const computePath = (terPct) => {
+    const net = (grossReturn - terPct) / 100;
+    return Array.from({ length: years + 1 }, (_, y) => {
+      const m = y * 12;
+      const sipC = monthlySIP > 0 ? sipFV(net, monthlySIP, m) : 0;
+      const lumpC = lumpsum > 0 ? lumpsum * Math.pow(1 + net, y) : 0;
+      return { year: y, corpus: Math.round(sipC + lumpC), invested: monthlySIP * m + lumpsum };
+    });
+  };
+
+  const TER_COLORS_LOCAL = ['#2563eb', '#dc2626', '#d97706'];
+
+  const terLevels = useMemo(
+    () => [
+      { label: `TER ${ter1.toFixed(2)}%`, ter: ter1, color: TER_COLORS_LOCAL[0] },
+      { label: `TER ${ter2.toFixed(2)}%`, ter: ter2, color: TER_COLORS_LOCAL[1] },
+      { label: `TER ${ter3.toFixed(2)}%`, ter: ter3, color: TER_COLORS_LOCAL[2] },
+    ].filter((t) => t.ter >= 0 && t.ter < grossReturn),
+    [ter1, ter2, ter3, grossReturn]
+  );
+
+  const paths = useMemo(() => terLevels.map((tl) => computePath(tl.ter)), [terLevels, grossReturn, monthlySIP, lumpsum, years]);
+
+  const chartData = useMemo(() => {
+    return Array.from({ length: years + 1 }, (_, y) => {
+      const row = { year: y };
+      terLevels.forEach((tl, i) => { row[tl.label] = paths[i][y]?.corpus ?? 0; });
+      row['Invested'] = paths[0]?.[y]?.invested ?? 0;
+      return row;
+    });
+  }, [years, terLevels, paths]);
+
+  const finalCorpus = terLevels.map((tl, i) => ({ ...tl, corpus: paths[i][years]?.corpus ?? 0 }));
+  const baseLine = finalCorpus[0];
+  const invested = chartData[years]?.Invested ?? 0;
+
+  return (
+    <div className="space-y-5">
+      <SectionLabel>13 TER IMPACT</SectionLabel>
+
+      {/* Fund TER badges */}
+      {funds.some((f) => f.ter != null) && (
+        <div className="flex flex-wrap gap-2">
+          {funds.map((f, i) =>
+            f.ter != null ? (
+              <span key={f.scheme_code} className="text-[10px] font-mono px-2 py-0.5 rounded border"
+                style={{ borderColor: FUND_COLORS[i % FUND_COLORS.length], color: FUND_COLORS[i % FUND_COLORS.length] }}>
+                {shortName(f.scheme_name)} — {f.ter.toFixed(2)}%
+              </span>
+            ) : null
+          )}
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Gross Ret %', val: grossReturn, set: setGrossReturn, step: 0.5 },
+          { label: 'SIP ₹/mo', val: monthlySIP, set: setMonthlySIP, step: 1000 },
+          { label: 'Lumpsum ₹', val: lumpsum, set: setLumpsum, step: 10000 },
+          { label: 'Years', val: years, set: setYears, step: 1 },
+        ].map(({ label, val, set, step }) => (
+          <label key={label} className="flex flex-col gap-1">
+            <span className="text-[9px] text-terminal-muted uppercase tracking-widest">{label}</span>
+            <input type="number" step={step} value={val}
+              onChange={(e) => set(parseFloat(e.target.value) || 0)}
+              className="bg-terminal-surface border border-terminal-border text-terminal-text text-xs font-mono px-2 py-1.5 rounded w-full focus:outline-none focus:border-terminal-amber" />
+          </label>
+        ))}
+      </div>
+
+      {/* TER level inputs */}
+      <div className="flex flex-wrap gap-4 items-end">
+        {[
+          { val: ter1, set: setTer1, color: TER_COLORS_LOCAL[0], label: 'TER 1 %' },
+          { val: ter2, set: setTer2, color: TER_COLORS_LOCAL[1], label: 'TER 2 %' },
+          { val: ter3, set: setTer3, color: TER_COLORS_LOCAL[2], label: 'TER 3 %' },
+        ].map(({ val, set, color, label }) => (
+          <label key={label} className="flex flex-col gap-1 w-28">
+            <span className="text-[9px] uppercase tracking-widest" style={{ color }}>{label}</span>
+            <input type="number" step={0.05} min={0} max={5} value={val}
+              onChange={(e) => set(parseFloat(e.target.value) || 0)}
+              className="bg-terminal-surface border text-xs font-mono px-2 py-1.5 rounded w-full focus:outline-none"
+              style={{ borderColor: color, color }} />
+          </label>
+        ))}
+      </div>
+
+      {/* Chart */}
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={chartData} margin={{ top: 5, right: 10, bottom: 5, left: 16 }}>
+          <CartesianGrid strokeDasharray="2 4" stroke={GRID} />
+          <XAxis dataKey="year" tickFormatter={(v) => `${v}Y`} tick={TICK_STYLE} tickLine={false} axisLine={{ stroke: GRID }} />
+          <YAxis tickFormatter={(v) => fmtLakh(v)} tick={TICK_STYLE} tickLine={false} axisLine={false} width={56} />
+          <Tooltip formatter={(v, n) => [fmtLakh(v), n]} contentStyle={TOOLTIP_STYLE} labelStyle={{ color: '#8b949e' }} />
+          <Line type="monotone" dataKey="Invested" stroke="#4b5563" strokeDasharray="5 3" dot={false} strokeWidth={1.5} />
+          {terLevels.map((tl) => (
+            <Line key={tl.label} type="monotone" dataKey={tl.label} stroke={tl.color} dot={false} strokeWidth={2} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+
+      {/* Drag table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr>
+              {['TER Level', 'Final Corpus', 'vs Lowest TER', 'Wealth Ratio'].map((h, i) => (
+                <Th key={h} right={i > 0}>{h}</Th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <Td accent="text-terminal-muted italic">Invested</Td>
+              <Td right accent="text-terminal-muted">{fmtLakh(invested)}</Td>
+              <Td right />
+              <Td right />
+            </tr>
+            {finalCorpus.map((tl, i) => {
+              const drag = i === 0 ? 0 : (baseLine?.corpus ?? 0) - tl.corpus;
+              const ratio = invested > 0 ? tl.corpus / invested : null;
+              return (
+                <tr key={tl.label}>
+                  <Td><span className="font-semibold font-mono" style={{ color: tl.color }}>{tl.label}</span></Td>
+                  <Td right accent="text-terminal-text tabular-mono">{fmtLakh(tl.corpus)}</Td>
+                  <Td right accent={i === 0 ? 'text-terminal-muted' : 'text-terminal-red'}>
+                    {i === 0 ? '—' : `−${fmtLakh(drag)}`}
+                  </Td>
+                  <Td right accent="text-terminal-text tabular-mono">
+                    {ratio != null ? `${ratio.toFixed(2)}x` : '—'}
+                  </Td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {finalCorpus.length >= 2 && (
+        <p className="text-[10px] text-terminal-amber font-mono px-3 py-2 border border-terminal-amber/30 rounded bg-terminal-amber/5">
+          DRAG: {finalCorpus[0].ter.toFixed(2)}% → {finalCorpus[finalCorpus.length - 1].ter.toFixed(2)}% TER costs{' '}
+          {fmtLakh((finalCorpus[0].corpus ?? 0) - (finalCorpus[finalCorpus.length - 1]?.corpus ?? 0))} over {years}Y
+          at {grossReturn}% gross return.
+        </p>
+      )}
+    </div>
+  );
+};
+
+// ── Risk-Adjusted Ranking section ─────────────────────────────────────────────
+const RankingSection = ({ data, analyticsData, rfRate, activeWindow }) => {
+  const avail = useMemo(() => data?.benchmark_windows?.map((bw) => bw.window) ?? [], [data]);
+  const curWin = avail.includes(activeWindow) ? activeWindow : avail[0] ?? '3y';
+  const benchWin = data?.benchmark_windows?.find((bw) => bw.window === curWin);
+  const rfPct = rfPeriodPct(rfRate, benchWin?.window_days ?? 365, 'absolute');
+  const chartData = useMemo(() => buildChartData(data?.funds ?? [], benchWin, 'absolute'), [data, benchWin]);
+  const allStats = useMemo(
+    () => computeAllStats(data?.funds ?? [], chartData, rfPct, data?.monthly_returns),
+    [data, chartData, rfPct]
+  );
+  const funds = data?.funds ?? [];
+
+  // Rank helper: returns rank array (0-based), null for NaN
+  const rankVals = (vals, higherIsBetter = true) => {
+    const idx = vals.map((v, i) => ({ v, i })).filter((x) => !isNaN(x.v) && x.v != null);
+    idx.sort((a, b) => (higherIsBetter ? b.v - a.v : a.v - b.v));
+    const rm = {};
+    idx.forEach(({ i }, r) => { rm[i] = r; });
+    return vals.map((_, i) => rm[i] != null ? rm[i] : null);
+  };
+
+  const metrics = useMemo(() => allStats.map((s) => {
+    const fc = s.freefincal;
+    const dd = analyticsData?.funds?.find((f) => f.scheme_code === s.fund.scheme_code);
+    return {
+      scheme_code: s.fund.scheme_code,
+      scheme_name: s.fund.scheme_name,
+      color: s.color,
+      ter: s.fund.ter,
+      sharpe: s.vol.sharpeFund,
+      sortino: s.vol.sortinoFund,
+      avgAlpha: s.outperf.avgAlpha,
+      infoRatio: s.vol.infoRatio,
+      beta: s.vol.beta,
+      captureRatio: fc?.captureRatio ?? NaN,
+      ucr: fc?.ucr ?? NaN,
+      dcr: fc?.dcr ?? NaN,
+      outperformedPct: s.outperf.outperformedPct,
+      maxDrawdown: dd?.drawdown?.max_drawdown ?? NaN,
+    };
+  }), [allStats, analyticsData]);
+
+  if (!metrics.length) return null;
+
+  const rSharpe    = rankVals(metrics.map((m) => m.sharpe),         true);
+  const rSortino   = rankVals(metrics.map((m) => m.sortino),        true);
+  const rAlpha     = rankVals(metrics.map((m) => m.avgAlpha),       true);
+  const rInfo      = rankVals(metrics.map((m) => m.infoRatio),      true);
+  const rBeta      = rankVals(metrics.map((m) => m.beta),           false);
+  const rCapture   = rankVals(metrics.map((m) => m.captureRatio),   true);
+  const rOutperf   = rankVals(metrics.map((m) => m.outperformedPct), true);
+  const rDD        = rankVals(metrics.map((m) => m.maxDrawdown),    true);
+
+  const compositeRanks = metrics.map((_, i) => {
+    const rs = [rSharpe[i], rSortino[i], rAlpha[i], rInfo[i], rCapture[i], rOutperf[i], rDD[i]].filter((r) => r != null);
+    return rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null;
+  });
+  const rComposite = rankVals(compositeRanks.map((v) => v != null ? -v : NaN), true);
+
+  const medal = (r) => {
+    if (r == null) return <span className="text-terminal-muted">—</span>;
+    const colors = ['text-yellow-400', 'text-gray-300', 'text-amber-600'];
+    if (r < 3) return <span className={`${colors[r]} font-bold`}>#{r + 1}</span>;
+    return <span className="text-terminal-muted">#{r + 1}</span>;
+  };
+
+  const signCls = (v, hib = true) => {
+    if (v == null || isNaN(v)) return 'text-terminal-muted';
+    return (hib ? v > 0 : v < 0) ? 'text-terminal-green' : 'text-terminal-red';
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionLabel>14 RANKING</SectionLabel>
+      <p className="text-[10px] text-terminal-muted">
+        Risk-adjusted metrics for {curWin.toUpperCase()} rolling window · absolute returns · Rf = {(rfRate * 100).toFixed(1)}%
+      </p>
+
+      {/* Main table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs min-w-[680px]">
+          <thead>
+            <tr>
+              <Th>Fund</Th>
+              <Th right>Sharpe</Th>
+              <Th right>Sortino</Th>
+              <Th right>Avg α</Th>
+              <Th right>Info R</Th>
+              <Th right>Beta</Th>
+              <Th right>Capture</Th>
+              <Th right>Hit%</Th>
+              {analyticsData && <Th right>Max DD</Th>}
+              {funds.some((f) => f.ter != null) && <Th right>TER</Th>}
+              <Th right>Overall</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {metrics.map((m, i) => (
+              <tr key={m.scheme_code}>
+                <Td>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
+                    <span className="truncate max-w-[160px]">{shortName(m.scheme_name)}</span>
+                  </div>
+                </Td>
+                <Td right accent={signCls(m.sharpe)}>
+                  {medal(rSharpe[i])} {isNaN(m.sharpe) ? '—' : m.sharpe.toFixed(2)}
+                </Td>
+                <Td right accent={signCls(m.sortino)}>
+                  {medal(rSortino[i])} {isNaN(m.sortino) ? '—' : m.sortino.toFixed(2)}
+                </Td>
+                <Td right accent={signCls(m.avgAlpha)}>
+                  {medal(rAlpha[i])} {isNaN(m.avgAlpha) ? '—' : `${m.avgAlpha.toFixed(2)}%`}
+                </Td>
+                <Td right accent={signCls(m.infoRatio)}>
+                  {medal(rInfo[i])} {isNaN(m.infoRatio) ? '—' : m.infoRatio.toFixed(2)}
+                </Td>
+                <Td right>
+                  {medal(rBeta[i])} {isNaN(m.beta) ? '—' : m.beta.toFixed(2)}
+                </Td>
+                <Td right accent={signCls(m.captureRatio - 1)}>
+                  {medal(rCapture[i])} {isNaN(m.captureRatio) ? '—' : `${m.captureRatio.toFixed(2)}x`}
+                </Td>
+                <Td right accent={signCls(m.outperformedPct - 50)}>
+                  {medal(rOutperf[i])} {m.outperformedPct.toFixed(0)}%
+                </Td>
+                {analyticsData && (
+                  <Td right accent="text-terminal-red">
+                    {medal(rDD[i])} {isNaN(m.maxDrawdown) ? '—' : `${m.maxDrawdown.toFixed(1)}%`}
+                  </Td>
+                )}
+                {funds.some((f) => f.ter != null) && (
+                  <Td right>{m.ter != null ? `${m.ter.toFixed(2)}%` : '—'}</Td>
+                )}
+                <Td right accent="text-terminal-amber font-bold">
+                  {medal(rComposite[i])}
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Capture detail */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {metrics.map((m) => (
+          <div key={m.scheme_code} className="border border-terminal-border rounded p-3 space-y-1">
+            <p className="text-[10px] font-semibold truncate" style={{ color: m.color }}>{shortName(m.scheme_name)}</p>
+            {[
+              { label: 'UCR', val: m.ucr, good: (v) => v >= 100 },
+              { label: 'DCR', val: m.dcr, good: (v) => v <= 100 },
+              { label: 'Capture', val: m.captureRatio, good: (v) => v >= 1, suffix: 'x' },
+            ].map(({ label, val, good, suffix = '%' }) => (
+              <div key={label} className="flex justify-between text-[10px]">
+                <span className="text-terminal-muted">{label}</span>
+                <span className={isNaN(val) ? 'text-terminal-muted' : good(val) ? 'text-terminal-green font-mono' : 'text-terminal-red font-mono'}>
+                  {isNaN(val) ? '—' : label === 'Capture' ? `${val.toFixed(2)}x` : `${val.toFixed(1)}%`}
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // ── Main chart component ───────────────────────────────────────────────────────
 const TerminalChart = ({ data, analyticsData, analyticsLoading, loading, error, activeSection, onSectionChange, hasData, rfRate }) => {
   const [activeWindow, setActiveWindow] = useState('3y');
@@ -1955,6 +2296,8 @@ const TerminalChart = ({ data, analyticsData, analyticsLoading, loading, error, 
             {activeSection === 'retirement' && <RetirementSection data={data} activeWindow={activeWindow} />}
             {activeSection === 'lumpsum-sip' && <LumpsumVsSipSection data={data} />}
             {activeSection === 'entry-heatmap' && <EntryHeatmapSection data={data} />}
+            {activeSection === 'ter-impact' && <TerImpactSection data={data} />}
+            {activeSection === 'ranking' && <RankingSection data={data} analyticsData={analyticsData} rfRate={rfRate} activeWindow={activeWindow} />}
           </>
         )}
       </div>

@@ -58,6 +58,7 @@ class FundResult(BaseModel):
     scheme_code: int
     scheme_name: str
     windows: list[FundWindowResult]
+    ter: Optional[float] = None     # applicable TER % from ter_data (direct or regular)
 
 
 class BenchmarkWindowResult(BaseModel):

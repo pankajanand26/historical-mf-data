@@ -21,6 +21,8 @@ import {
   MonthlyHeatmapCard,
   LumpsumVsSipCard,
   EntryHeatmapCard,
+  TerImpactCard,
+  RankingCard,
 } from './cards';
 
 const RollingReturnChart = ({
@@ -198,6 +200,19 @@ const RollingReturnChart = ({
 
       case 'entry-heatmap':
         return <EntryHeatmapCard data={data} />;
+
+      case 'ter-impact':
+        return <TerImpactCard data={data} />;
+
+      case 'ranking':
+        return hasData ? (
+          <RankingCard
+            data={data}
+            analyticsData={analyticsData}
+            rfRate={riskFreeAnnual}
+            activeWindow={activeWindow}
+          />
+        ) : null;
 
       default:
         return null;

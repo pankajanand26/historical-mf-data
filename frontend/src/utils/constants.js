@@ -49,6 +49,8 @@ export const TABS = [
   { id: 'distribution', label: 'Dist' },
   { id: 'monthly', label: 'Monthly' },
   { id: 'entry-heatmap', label: 'Entry' },
+  { id: 'ter-impact', label: 'TER' },
+  { id: 'ranking', label: 'Rank' },
 ];
 
 // SIP tools grouped separately (accessed via dropdown)
