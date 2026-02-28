@@ -1,19 +1,138 @@
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Legend,
+} from 'recharts';
 import { FUND_COLORS, BENCHMARK_COLOR } from '../../../utils/constants';
-import { shortName } from '../../../utils/formatters';
+import { shortName, tickFormatter } from '../../../utils/formatters';
 
 const DrawdownCard = ({
   funds,
   analyticsData,
   analyticsLoading,
+  allStats,
+  benchmarkName,
 }) => {
+  // Build combined drawdown time-series data for chart
+  // Each row: { date, fund_123_dd, fund_456_dd, benchmarkDD }
+  const buildCombinedDDData = () => {
+    if (!allStats || allStats.length === 0) return [];
+    
+    // Use first fund's ddSeries dates as reference
+    const refSeries = allStats[0]?.ddSeries ?? [];
+    if (refSeries.length === 0) return [];
+    
+    return refSeries.map((row, idx) => {
+      const combined = { date: row.date, benchmarkDD: row.benchmarkDD };
+      allStats.forEach((stat) => {
+        const ddRow = stat.ddSeries[idx];
+        if (ddRow) {
+          combined[`fund_${stat.fund.scheme_code}_dd`] = ddRow.fundDD;
+        }
+      });
+      return combined;
+    });
+  };
+
+  const ddChartData = buildCombinedDDData();
+  const hasChartData = ddChartData.length > 0;
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-6">
       <div className="mb-4">
         <h2 className="text-base font-semibold text-gray-900">Drawdown Profile</h2>
         <p className="text-xs text-gray-500 mt-0.5">
           Maximum peak-to-trough decline and recovery statistics over the selected date range
         </p>
       </div>
+
+      {/* Drawdown Time-Series Chart */}
+      {hasChartData && (
+        <div>
+          <h3 className="text-sm font-medium text-gray-700 mb-3">Drawdown Over Time</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={ddChartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
+              <defs>
+                {allStats.map((stat, idx) => (
+                  <linearGradient key={stat.fund.scheme_code} id={`ddGrad_${stat.fund.scheme_code}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={FUND_COLORS[idx % FUND_COLORS.length]} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={FUND_COLORS[idx % FUND_COLORS.length]} stopOpacity={0.05} />
+                  </linearGradient>
+                ))}
+                <linearGradient id="ddGrad_bench" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={BENCHMARK_COLOR} stopOpacity={0.2} />
+                  <stop offset="95%" stopColor={BENCHMARK_COLOR} stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis 
+                dataKey="date" 
+                tickFormatter={tickFormatter}
+                tick={{ fontSize: 10, fill: '#6b7280' }} 
+                tickLine={false} 
+                interval="preserveStartEnd" 
+              />
+              <YAxis 
+                tickFormatter={(v) => `${v.toFixed(0)}%`}
+                tick={{ fontSize: 10, fill: '#6b7280' }} 
+                tickLine={false} 
+                axisLine={false}
+                domain={['dataMin - 5', 0]}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                }}
+                formatter={(value, name) => [`${value?.toFixed(2)}%`, name]}
+                labelFormatter={(label) => `Date: ${label}`}
+              />
+              <Legend 
+                wrapperStyle={{ fontSize: '11px' }}
+                formatter={(value) => <span className="text-xs text-gray-600">{value}</span>}
+              />
+              <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1} />
+              
+              {/* Benchmark drawdown area */}
+              <Area
+                type="monotone"
+                dataKey="benchmarkDD"
+                name={benchmarkName ? shortName(benchmarkName) : 'Benchmark'}
+                stroke={BENCHMARK_COLOR}
+                fill="url(#ddGrad_bench)"
+                strokeWidth={1.5}
+                strokeDasharray="4 2"
+                dot={false}
+              />
+              
+              {/* Fund drawdown areas */}
+              {allStats.map((stat, idx) => (
+                <Area
+                  key={stat.fund.scheme_code}
+                  type="monotone"
+                  dataKey={`fund_${stat.fund.scheme_code}_dd`}
+                  name={shortName(stat.fund.scheme_name)}
+                  stroke={FUND_COLORS[idx % FUND_COLORS.length]}
+                  fill={`url(#ddGrad_${stat.fund.scheme_code})`}
+                  strokeWidth={2}
+                  dot={false}
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+          <p className="text-[10px] text-gray-400 mt-2 text-center">
+            Drawdown = % decline from rolling peak. Lower (more negative) is worse.
+          </p>
+        </div>
+      )}
 
       {analyticsLoading && (
         <div className="flex items-center gap-3 py-6 justify-center text-gray-400 text-sm">
@@ -47,6 +166,7 @@ const DrawdownCard = ({
 
         return (
           <div className="overflow-x-auto">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Maximum Drawdown Statistics</h3>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">

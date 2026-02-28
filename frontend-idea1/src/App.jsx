@@ -36,6 +36,7 @@ const App = () => {
   const [endDate, setEndDate] = useState(null);
   const [activeTab, setActiveTab] = useState('returns');
   const [rfRate, setRfRate] = useState(DEFAULT_RF_RATE);
+  const [activeWindow, setActiveWindow] = useState('3y'); // Global window for all tabs
 
   const { data, loading, error, fetch: fetchReturns, reset } = useRollingReturns();
   const { data: analyticsData, loading: analyticsLoading, fetch: fetchAnalytics, reset: resetAnalytics } = useFundAnalytics();
@@ -95,7 +96,13 @@ const App = () => {
 
       {/* KPI Strip - below header, above main content */}
       {data && !loading && (
-        <KpiStrip data={data} analyticsData={analyticsData} rfRate={rfRate} />
+        <KpiStrip
+          data={data}
+          analyticsData={analyticsData}
+          rfRate={rfRate}
+          activeWindow={activeWindow}
+          setActiveWindow={setActiveWindow}
+        />
       )}
 
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
@@ -196,6 +203,8 @@ const App = () => {
                   analyticsLoading={analyticsLoading}
                   activeTab={activeTab}
                   rfRate={rfRate}
+                  activeWindow={activeWindow}
+                  setActiveWindow={setActiveWindow}
                 />
               </>
             )}

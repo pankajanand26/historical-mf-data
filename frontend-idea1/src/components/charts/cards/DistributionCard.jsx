@@ -12,21 +12,21 @@ import {
 } from 'recharts';
 import { extractReturnDist, getDistributionStats } from '../../../utils/sipUtils';
 import { shortName } from '../../../utils/formatters';
-import { FUND_COLORS, WINDOWS } from '../../../utils/constants';
-import { SectionHeader } from '../../ui';
+import { FUND_COLORS } from '../../../utils/constants';
 
 /**
  * Distribution card - Histogram of rolling CAGR returns.
  * Shows distribution shape and key statistics.
+ * Uses global activeWindow from App.
  */
-const DistributionCard = ({ data }) => {
-  const [activeWindow, setActiveWindow] = useState('3y');
+const DistributionCard = ({ data, activeWindow }) => {
   const [activeFund, setActiveFund] = useState(null);
 
   const avail = useMemo(
     () => data?.benchmark_windows?.map((bw) => bw.window) ?? [],
     [data]
   );
+  // Use global activeWindow, fallback to first available
   const curWin = avail.includes(activeWindow) ? activeWindow : avail[0] ?? '3y';
   const funds = data?.funds ?? [];
 
@@ -84,6 +84,9 @@ const DistributionCard = ({ data }) => {
       <div>
         <h2 className="text-base font-semibold text-gray-900">
           Return Distribution
+          <span className="ml-2 text-xs font-normal text-gray-400">
+            ({curWin.toUpperCase()} window)
+          </span>
         </h2>
         <p className="text-xs text-gray-500 mt-0.5">
           Histogram of rolling CAGR returns · Shows probability of different
@@ -91,26 +94,9 @@ const DistributionCard = ({ data }) => {
         </p>
       </div>
 
-      {/* Controls */}
+      {/* Fund selector only */}
       <div className="flex flex-wrap items-center gap-4">
-        {/* Window selector */}
-        <div className="flex gap-2">
-          {avail.map((w) => (
-            <button
-              key={w}
-              onClick={() => setActiveWindow(w)}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                curWin === w
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {WINDOWS.find((x) => x.id === w)?.label ?? w.toUpperCase()}
-            </button>
-          ))}
-        </div>
-
-        {/* Fund selector */}
+        <span className="text-xs text-gray-500 font-medium">Select fund:</span>
         <div className="flex gap-2 flex-wrap">
           {funds.map((f, i) => (
             <button

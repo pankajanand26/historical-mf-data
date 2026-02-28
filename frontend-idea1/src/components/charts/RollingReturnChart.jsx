@@ -1,19 +1,12 @@
 import { useState } from 'react';
 import { FUND_COLORS, BENCHMARK_COLOR, DEFAULT_RF_RATE } from '../../utils/constants';
-import { mean } from '../../utils/chartUtils';
 import {
+  mean,
   applyReturnType,
   rfPeriodPct,
   buildChartData,
 } from '../../utils/chartUtils';
-import {
-  computeOutperformanceStats,
-  computeVolatilityStats,
-  computeCaptureStats,
-  computeFreefincalCaptureStats,
-  buildScatterData,
-  buildAlphaData,
-} from '../../utils/statsUtils';
+import { computeAllStats } from '../../utils/statsUtils';
 import { shortName } from '../../utils/formatters';
 import {
   RollingReturnCard,
@@ -32,18 +25,24 @@ const RollingReturnChart = ({
   analyticsLoading,
   activeTab = 'returns',
   rfRate = DEFAULT_RF_RATE,
+  activeWindow,      // Global window from App
+  setActiveWindow,   // Global setter from App
 }) => {
   const windows = data?.benchmark_windows ?? [];
   const funds = data?.funds ?? [];
   // Use rfRate prop (from App) if provided, otherwise fall back to data or default
   const riskFreeAnnual = rfRate ?? data?.risk_free_rate ?? DEFAULT_RF_RATE;
 
-  const [activeWindow, setActiveWindow] = useState(windows[0]?.window ?? null);
+  // Use global activeWindow, fallback to first window if not available
+  const currentWindowKey = windows.find((w) => w.window === activeWindow)
+    ? activeWindow
+    : windows[0]?.window ?? null;
+    
   const [returnType, setReturnType] = useState('absolute');
 
   if (!data || !windows.length || !funds.length) return null;
 
-  const benchmarkWindow = windows.find((w) => w.window === activeWindow) ?? windows[0];
+  const benchmarkWindow = windows.find((w) => w.window === currentWindowKey) ?? windows[0];
   const currentWindow = benchmarkWindow.window;
   const windowDays = benchmarkWindow.window_days;
 
@@ -70,26 +69,11 @@ const RollingReturnChart = ({
   const benchLatest = benchValues.at(-1) ?? null;
   const benchAvg = benchValues.length ? mean(benchValues) : null;
 
-  // All analysis stats
-  const allStats = funds.map((fund, idx) => ({
-    fund,
-    color: FUND_COLORS[idx % FUND_COLORS.length],
-    outperf: computeOutperformanceStats(chartData, fund),
-    vol: computeVolatilityStats(chartData, fund, rfPct),
-  }));
-
-  // Capture stats and per-fund chart data
-  const captureStats = funds.map((fund, idx) => ({
-    fund,
-    color: FUND_COLORS[idx % FUND_COLORS.length],
-    capture: computeCaptureStats(chartData, fund),
-    freefincal: computeFreefincalCaptureStats(data?.monthly_returns, fund),
-    scatterData: buildScatterData(chartData, fund),
-    alphaData: buildAlphaData(chartData, fund),
-  }));
+  // All analysis stats (now includes ddSeries for each fund)
+  const allStats = computeAllStats(funds, chartData, rfPct, data?.monthly_returns);
 
   // Compute shared scatter domain across all funds for visual consistency
-  const allScatterPts = captureStats.flatMap((s) => s.scatterData);
+  const allScatterPts = allStats.flatMap((s) => s.scatterData);
   const allX = allScatterPts.map((p) => p.x);
   const allY = allScatterPts.map((p) => p.y);
   const scatterXMin = allX.length ? Math.min(...allX) : -20;
@@ -136,8 +120,6 @@ const RollingReturnChart = ({
             funds={funds}
             windows={windows}
             currentWindow={currentWindow}
-            activeWindow={activeWindow}
-            setActiveWindow={setActiveWindow}
             returnType={returnType}
             setReturnType={setReturnType}
             chartData={chartData}
@@ -162,11 +144,11 @@ const RollingReturnChart = ({
         ) : null;
 
       case 'capture':
-        return hasData && captureStats.length > 0 ? (
+        return hasData && allStats.length > 0 ? (
           <MarketCaptureCard
             currentWindow={currentWindow}
             returnType={returnType}
-            captureStats={captureStats}
+            captureStats={allStats}
             scatterDomain={scatterDomain}
           />
         ) : null;
@@ -177,6 +159,8 @@ const RollingReturnChart = ({
             funds={funds}
             analyticsData={analyticsData}
             analyticsLoading={analyticsLoading}
+            allStats={allStats}
+            benchmarkName={data.benchmark_name}
           />
         ) : null;
 
@@ -186,14 +170,15 @@ const RollingReturnChart = ({
             data={data}
             analyticsData={analyticsData}
             rfRate={riskFreeAnnual}
+            activeWindow={activeWindow}
           />
         );
 
       case 'distribution':
-        return <DistributionCard data={data} />;
+        return <DistributionCard data={data} activeWindow={activeWindow} />;
 
       case 'sip':
-        return <SipPlannerCard data={data} />;
+        return <SipPlannerCard data={data} activeWindow={activeWindow} />;
 
       case 'monthly':
         return <MonthlyHeatmapCard data={data} />;

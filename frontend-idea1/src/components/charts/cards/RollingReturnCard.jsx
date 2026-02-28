@@ -18,8 +18,6 @@ const RollingReturnCard = ({
   funds,
   windows,
   currentWindow,
-  activeWindow,
-  setActiveWindow,
   returnType,
   setReturnType,
   chartData,
@@ -28,11 +26,20 @@ const RollingReturnCard = ({
   benchLatest,
   benchAvg,
 }) => {
+  // Find current window's data point count for display
+  const windowInfo = windows.find((w) => w.window === currentWindow);
+  const dataPoints = windowInfo?.data_points ?? 0;
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
       {/* Title */}
       <div className="mb-4">
-        <h2 className="text-base font-semibold text-gray-900">Rolling Returns vs Benchmark</h2>
+        <h2 className="text-base font-semibold text-gray-900">
+          Rolling Returns vs Benchmark
+          <span className="ml-2 text-xs font-normal text-gray-400">
+            ({currentWindow.toUpperCase()} · {dataPoints} data points)
+          </span>
+        </h2>
         <p className="text-xs text-gray-500 mt-0.5">
           {returnType === 'absolute'
             ? 'Total return over trailing window · Values in %'
@@ -40,25 +47,8 @@ const RollingReturnCard = ({
         </p>
       </div>
 
-      {/* Window tabs + Absolute/CAGR toggle */}
-      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-        <div className="flex gap-2 flex-wrap">
-          {windows.map((w) => (
-            <button
-              key={w.window}
-              onClick={() => setActiveWindow(w.window)}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                currentWindow === w.window
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {w.window.toUpperCase()}{' '}
-              <span className="text-xs opacity-75">({w.data_points} pts)</span>
-            </button>
-          ))}
-        </div>
-
+      {/* Absolute/CAGR toggle only */}
+      <div className="flex items-center justify-end gap-3 mb-5">
         <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden text-sm font-medium shadow-sm">
           <button
             onClick={() => setReturnType('absolute')}

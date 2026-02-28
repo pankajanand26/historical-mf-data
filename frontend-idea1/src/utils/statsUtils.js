@@ -256,6 +256,37 @@ export function buildAlphaData(chartData, fund) {
 }
 
 /**
+ * Build drawdown time-series for a single fund vs benchmark.
+ * Returns [{date, fundDD, benchmarkDD}] where DD is % drawdown from peak.
+ * Drawdowns are always <= 0 (negative when below peak, 0 at peak).
+ */
+export function buildDrawdownSeries(chartData, fund) {
+  const key = `fund_${fund.scheme_code}`;
+  const rows = chartData.filter((row) => row[key] != null && row.benchmark != null);
+  if (rows.length === 0) return [];
+
+  let fundPeak = -Infinity;
+  let benchPeak = -Infinity;
+
+  return rows.map((row) => {
+    // Treat return as NAV growth: NAV = 100 + cumulative return %
+    const fundNav = 100 + row[key];
+    const benchNav = 100 + row.benchmark;
+
+    // Update peaks
+    fundPeak = Math.max(fundPeak, fundNav);
+    benchPeak = Math.max(benchPeak, benchNav);
+
+    // Drawdown = (current / peak - 1) * 100, always <= 0
+    return {
+      date: row.date,
+      fundDD: parseFloat(((fundNav / fundPeak - 1) * 100).toFixed(3)),
+      benchmarkDD: parseFloat(((benchNav / benchPeak - 1) * 100).toFixed(3)),
+    };
+  });
+}
+
+/**
  * Compute all stats for all funds in one pass.
  */
 export function computeAllStats(funds, chartData, rfPct, monthlyReturns) {
@@ -268,6 +299,7 @@ export function computeAllStats(funds, chartData, rfPct, monthlyReturns) {
     freefincal: computeFreefincalCaptureStats(monthlyReturns, fund),
     scatterData: buildScatterData(chartData, fund),
     alphaData: buildAlphaData(chartData, fund),
+    ddSeries: buildDrawdownSeries(chartData, fund),
   }));
 }
 

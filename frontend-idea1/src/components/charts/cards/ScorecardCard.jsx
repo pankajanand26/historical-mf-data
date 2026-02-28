@@ -1,22 +1,20 @@
-import { useState, useMemo } from 'react';
-import { computeFundScores, scoreGrade, scoreColor, getDimensionLabel } from '../../../utils/scoreUtils';
+import { useMemo } from 'react';
+import { computeFundScores, scoreGrade, scoreColor } from '../../../utils/scoreUtils';
 import { computeAllStats } from '../../../utils/statsUtils';
 import { buildChartData, rfPeriodPct } from '../../../utils/chartUtils';
 import { shortName } from '../../../utils/formatters';
-import { WINDOWS } from '../../../utils/constants';
-import { SectionHeader } from '../../ui';
 
 /**
  * Scorecard card - Multi-dimensional fund scoring system.
  * Shows normalized 0-100 scores across 5 dimensions with letter grades.
+ * Uses global activeWindow from App.
  */
-const ScorecardCard = ({ data, analyticsData, rfRate }) => {
-  const [activeWindow, setActiveWindow] = useState('3y');
-  
+const ScorecardCard = ({ data, analyticsData, rfRate, activeWindow }) => {
   const avail = useMemo(
     () => data?.benchmark_windows?.map((bw) => bw.window) ?? [],
     [data]
   );
+  // Use global activeWindow, fallback to first available
   const curWin = avail.includes(activeWindow) ? activeWindow : avail[0] ?? '3y';
   const benchWin = data?.benchmark_windows?.find((bw) => bw.window === curWin);
   const rfPct = rfPeriodPct(rfRate, benchWin?.window_days ?? 365, 'absolute');
@@ -48,27 +46,15 @@ const ScorecardCard = ({ data, analyticsData, rfRate }) => {
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-base font-semibold text-gray-900">Fund Scorecard</h2>
+        <h2 className="text-base font-semibold text-gray-900">
+          Fund Scorecard
+          <span className="ml-2 text-xs font-normal text-gray-400">
+            ({curWin.toUpperCase()} window)
+          </span>
+        </h2>
         <p className="text-xs text-gray-500 mt-0.5">
           Multi-dimensional fund comparison · 0-100 scale · Min-max normalized within selection
         </p>
-      </div>
-
-      {/* Window selector */}
-      <div className="flex gap-2 flex-wrap">
-        {avail.map((w) => (
-          <button
-            key={w}
-            onClick={() => setActiveWindow(w)}
-            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-              curWin === w
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            {WINDOWS.find((x) => x.id === w)?.label ?? w.toUpperCase()}
-          </button>
-        ))}
       </div>
 
       {/* Scoring methodology */}

@@ -16,15 +16,15 @@ import {
   goalProbability,
 } from '../../../utils/sipUtils';
 import { shortName, fmtLakh } from '../../../utils/formatters';
-import { FUND_COLORS, WINDOWS } from '../../../utils/constants';
+import { FUND_COLORS } from '../../../utils/constants';
 import { SectionHeader } from '../../ui';
 
 /**
  * SIP Planner card - Goal-based SIP projection with probability analysis.
  * Shows fan chart of potential outcomes and goal hit probability.
+ * Uses global activeWindow from App.
  */
-const SipPlannerCard = ({ data }) => {
-  const [activeWindow, setActiveWindow] = useState('3y');
+const SipPlannerCard = ({ data, activeWindow }) => {
   const [sipAmount, setSipAmount] = useState(10000);
   const [horizonYears, setHorizonYears] = useState(10);
   const [targetCorpus, setTargetCorpus] = useState(2500000);
@@ -33,6 +33,7 @@ const SipPlannerCard = ({ data }) => {
     () => data?.benchmark_windows?.map((bw) => bw.window) ?? [],
     [data]
   );
+  // Use global activeWindow, fallback to first available
   const curWin = avail.includes(activeWindow) ? activeWindow : avail[0] ?? '3y';
   const funds = data?.funds ?? [];
 
@@ -66,32 +67,20 @@ const SipPlannerCard = ({ data }) => {
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-base font-semibold text-gray-900">SIP Planner</h2>
+        <h2 className="text-base font-semibold text-gray-900">
+          SIP Planner
+          <span className="ml-2 text-xs font-normal text-gray-400">
+            ({curWin.toUpperCase()} window)
+          </span>
+        </h2>
         <p className="text-xs text-gray-500 mt-0.5">
           Goal-based SIP projection using historical return distribution ·
           Monte Carlo simulation
         </p>
       </div>
 
-      {/* Controls */}
+      {/* Controls - SIP inputs only (no window selector) */}
       <div className="flex flex-wrap items-center gap-4">
-        {/* Window selector */}
-        <div className="flex gap-2">
-          {avail.map((w) => (
-            <button
-              key={w}
-              onClick={() => setActiveWindow(w)}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                curWin === w
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {WINDOWS.find((x) => x.id === w)?.label ?? w.toUpperCase()}
-            </button>
-          ))}
-        </div>
-
         {/* SIP Input */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500">SIP</span>
