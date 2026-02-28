@@ -5,18 +5,18 @@ import { useState, useEffect } from 'react';
  * Default: 6.5% (typical Indian risk-free rate)
  */
 const RfRateInput = ({ value, onChange }) => {
-  const [localValue, setLocalValue] = useState(value);
+  const [localValue, setLocalValue] = useState(value * 100);
 
-  // Sync local state when prop changes
+  // Sync local state when prop changes (convert decimal → display %)
   useEffect(() => {
-    setLocalValue(value);
+    setLocalValue(value * 100);
   }, [value]);
 
   const handleBlur = () => {
     // Clamp between 0 and 20%
     const clamped = Math.max(0, Math.min(20, parseFloat(localValue) || 0));
     setLocalValue(clamped);
-    onChange(clamped);
+    onChange(clamped / 100); // convert display % → decimal for internal state
   };
 
   const handleChange = (e) => {
