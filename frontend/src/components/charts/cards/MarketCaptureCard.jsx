@@ -18,11 +18,13 @@ import { CaptureScatterTooltip, AlphaTooltip } from '../tooltips';
 
 const MarketCaptureCard = ({
   currentWindow,
-  returnType,
   captureStats,
   scatterDomain,
 }) => {
-  const returnLabel = returnType === 'cagr' ? 'CAGR' : 'Absolute';
+  // Get month counts from first fund's freefincal data for subtitle
+  const firstFreefincal = captureStats[0]?.freefincal;
+  const upMonths = firstFreefincal?.upMonths ?? 0;
+  const downMonths = firstFreefincal?.downMonths ?? 0;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-8">
@@ -33,11 +35,11 @@ const MarketCaptureCard = ({
         </p>
       </div>
 
-      {/* ── Section 6a: Capture table ─────────────────────────────────── */}
+      {/* ── Section 1: Upside / Downside Capture (monthly CAGR method) ──── */}
       <div>
         <SectionHeader
           title="Upside / Downside Capture"
-          subtitle={`Based on ${currentWindow.toUpperCase()} rolling ${returnLabel.toLowerCase()} return observations · ${captureStats[0]?.capture.upPeriods ?? 0} up-market periods · ${captureStats[0]?.capture.downPeriods ?? 0} down-market periods`}
+          subtitle={`Monthly CAGR method · ${upMonths} up months · ${downMonths} down months · non-overlapping monthly returns from selected date range`}
         />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -47,8 +49,96 @@ const MarketCaptureCard = ({
                 <th className="text-right font-medium text-gray-500 pb-2 px-3">UCR</th>
                 <th className="text-right font-medium text-gray-500 pb-2 px-3">DCR</th>
                 <th className="text-right font-medium text-gray-500 pb-2 px-3">Capture Ratio</th>
-                <th className="text-right font-medium text-gray-500 pb-2 px-3">Up Consistency</th>
-                <th className="text-right font-medium text-gray-500 pb-2 pl-3">Down Consistency</th>
+                <th className="text-right font-medium text-gray-500 pb-2 px-3">Up Months</th>
+                <th className="text-right font-medium text-gray-500 pb-2 pl-3">Down Months</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {captureStats.map(({ fund, color, freefincal }) => (
+                <tr key={fund.scheme_code} className="hover:bg-gray-50 transition-colors">
+                  <td className="py-3 pr-4">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                      <span className="font-medium text-gray-800 truncate" title={fund.scheme_name}>
+                        {shortName(fund.scheme_name)}
+                      </span>
+                    </div>
+                  </td>
+                  {/* UCR: >100 = captured more up (emerald), <100 = amber */}
+                  <td className="py-3 px-3 text-right">
+                    {!freefincal || isNaN(freefincal.ucr) ? (
+                      <span className="text-gray-400">N/A</span>
+                    ) : (
+                      <span className={`font-semibold ${freefincal.ucr >= 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {freefincal.ucr.toFixed(1)}
+                      </span>
+                    )}
+                  </td>
+                  {/* DCR: <100 = protected in downturns (emerald), >100 = rose */}
+                  <td className="py-3 px-3 text-right">
+                    {!freefincal || isNaN(freefincal.dcr) ? (
+                      <span className="text-gray-400">N/A</span>
+                    ) : (
+                      <span className={`font-semibold ${freefincal.dcr <= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {freefincal.dcr.toFixed(1)}
+                      </span>
+                    )}
+                  </td>
+                  {/* Capture Ratio: >1 = ideal (emerald), <1 = rose */}
+                  <td className="py-3 px-3 text-right">
+                    {!freefincal || isNaN(freefincal.captureRatio) ? (
+                      <span className="text-gray-400">N/A</span>
+                    ) : (
+                      <span className={`font-semibold ${freefincal.captureRatio >= 1 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {freefincal.captureRatio.toFixed(2)}x
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-3 text-right font-semibold text-blue-600">
+                    {freefincal ? freefincal.upMonths : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="py-3 pl-3 text-right font-semibold text-rose-600">
+                    {freefincal ? freefincal.downMonths : <span className="text-gray-400">—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="text-xs text-gray-400 mt-2 space-y-0.5">
+          <p>
+            <span className="font-medium">UCR</span> (Upside Capture Ratio) = fund CAGR in up-benchmark months / benchmark CAGR in those months × 100.{' '}
+            <span className="text-emerald-600 font-medium">&ge;100</span> = captured more of benchmark gains.
+          </p>
+          <p>
+            <span className="font-medium">DCR</span> (Downside Capture Ratio) = same logic for down-benchmark months.{' '}
+            <span className="text-emerald-600 font-medium">&le;100</span> = protected more in drawdowns.
+          </p>
+          <p>
+            <span className="font-medium">Capture Ratio</span> = UCR / DCR.{' '}
+            <span className="text-emerald-600 font-medium">&gt;1x</span> = captured more upside than downside (ideal asymmetry).
+          </p>
+          <p>
+            <span className="font-medium">Methodology:</span> Non-overlapping monthly returns filtered by benchmark sign.
+            CAGR computed via product formula: [∏(1+rᵢ)]^(12/n) − 1.{' '}
+            <span className="font-medium">Window-independent</span> — same result regardless of rolling window tab.
+          </p>
+        </div>
+      </div>
+
+      {/* ── Section 2: Down Market Alpha ─────────────────────────────────── */}
+      <div>
+        <SectionHeader
+          title="Down Market Alpha"
+          subtitle={`Average excess return (fund − benchmark) across ${currentWindow.toUpperCase()} rolling-return observations where benchmark < 0`}
+        />
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left font-medium text-gray-500 pb-2 pr-4">Fund</th>
+                <th className="text-right font-medium text-gray-500 pb-2 px-3">Down Market Alpha</th>
+                <th className="text-right font-medium text-gray-500 pb-2 pl-3">Down Periods Used</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -62,257 +152,31 @@ const MarketCaptureCard = ({
                       </span>
                     </div>
                   </td>
-                  {/* UCR: >100 = outperformed in up market (emerald), <100 = amber */}
                   <td className="py-3 px-3 text-right">
-                    {isNaN(capture.ucr) ? <span className="text-gray-400">N/A</span> : (
-                      <span className={`font-semibold ${capture.ucr >= 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {capture.ucr.toFixed(1)}
+                    {isNaN(capture.downAlpha) ? (
+                      <span className="text-gray-400">N/A</span>
+                    ) : (
+                      <span className={`font-semibold ${capture.downAlpha >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {capture.downAlpha >= 0 ? '+' : ''}{capture.downAlpha.toFixed(2)}%
                       </span>
                     )}
                   </td>
-                  {/* DCR: <100 = protected in down market (emerald), >100 = amplified (rose) */}
-                  <td className="py-3 px-3 text-right">
-                    {isNaN(capture.dcr) ? <span className="text-gray-400">N/A</span> : (
-                      <span className={`font-semibold ${capture.dcr <= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {capture.dcr.toFixed(1)}
-                      </span>
-                    )}
-                  </td>
-                  {/* Capture Ratio: >1 = more up than down capture (emerald), <1 = rose */}
-                  <td className="py-3 px-3 text-right">
-                    {isNaN(capture.captureRatio) ? <span className="text-gray-400">N/A</span> : (
-                      <span className={`font-semibold ${capture.captureRatio >= 1 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {capture.captureRatio.toFixed(2)}x
-                      </span>
-                    )}
-                  </td>
-                  {/* Up Consistency: % of up-benchmark periods fund beat benchmark */}
-                  <td className="py-3 px-3 text-right">
-                    {isNaN(capture.upConsistPct) ? <span className="text-gray-400">N/A</span> : (
-                      <span className={`font-semibold ${capture.upConsistPct >= 60 ? 'text-emerald-600' : capture.upConsistPct >= 40 ? 'text-amber-600' : 'text-rose-600'}`}>
-                        {capture.upConsistPct.toFixed(1)}%
-                      </span>
-                    )}
-                  </td>
-                  {/* Down Consistency: % of down-benchmark periods fund fell less */}
-                  <td className="py-3 pl-3 text-right">
-                    {isNaN(capture.downConsistPct) ? <span className="text-gray-400">N/A</span> : (
-                      <span className={`font-semibold ${capture.downConsistPct >= 60 ? 'text-emerald-600' : capture.downConsistPct >= 40 ? 'text-amber-600' : 'text-rose-600'}`}>
-                        {capture.downConsistPct.toFixed(1)}%
-                      </span>
-                    )}
+                  <td className="py-3 pl-3 text-right font-semibold text-gray-600">
+                    {capture.downPeriods > 0 ? capture.downPeriods : <span className="text-gray-400">—</span>}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <div className="text-xs text-gray-400 mt-2 space-y-0.5">
-          <p>
-            <span className="font-medium">UCR</span> (Upside Capture Ratio) = mean fund return in rising-benchmark periods / mean benchmark return in those periods × 100.{' '}
-            <span className="text-emerald-600 font-medium">&ge;100</span> = captured more of benchmark gains.
-          </p>
-          <p>
-            <span className="font-medium">DCR</span> (Downside Capture Ratio) = same logic in falling-benchmark periods.{' '}
-            <span className="text-emerald-600 font-medium">&le;100</span> = protected more in drawdowns.
-          </p>
-          <p>
-            <span className="font-medium">Capture Ratio</span> = UCR / DCR.{' '}
-            <span className="text-emerald-600 font-medium">&gt;1x</span> = captured more upside than downside (ideal).{' '}
-            <span className="font-medium">Up/Down Consistency</span> = % of periods where fund outperformed benchmark in rising/falling markets respectively.
-          </p>
-          <p className="text-gray-300">
-            Note: computed from overlapping rolling-return observations (not monthly NAV as per Morningstar convention). Best used for relative comparison across funds.
-          </p>
-        </div>
-
-        {/* ── Period breakdown table ──────────────────────────────────── */}
-        <div className="mt-6">
-          <SectionHeader
-            title="Observation Period Breakdown"
-            subtitle="Number of rolling-return observations used in the capture analysis above"
-          />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left font-medium text-gray-500 pb-2 pr-4">Fund</th>
-                  <th className="text-right font-medium text-gray-500 pb-2 px-3">Total Observations</th>
-                  <th className="text-right font-medium text-gray-500 pb-2 px-3">Up-Market Periods</th>
-                  <th className="text-right font-medium text-gray-500 pb-2 pl-3">Down-Market Periods</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {captureStats.map(({ fund, color, capture }) => (
-                  <tr key={fund.scheme_code} className="hover:bg-gray-50 transition-colors">
-                    <td className="py-3 pr-4">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                        <span className="font-medium text-gray-800 truncate" title={fund.scheme_name}>
-                          {shortName(fund.scheme_name)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-right font-semibold text-gray-800">
-                      {capture.totalPeriods}
-                    </td>
-                    <td className="py-3 px-3 text-right font-semibold text-blue-600">
-                      {capture.upPeriods}
-                    </td>
-                    <td className="py-3 pl-3 text-right font-semibold text-rose-600">
-                      {capture.downPeriods}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-xs text-gray-400 mt-2">
-            Up-market periods: benchmark rolling return &gt; 0. Down-market periods: benchmark rolling return &lt; 0.
-            Observations where benchmark = 0 exactly are excluded from both counts but included in the total.
-          </p>
-        </div>
-
-        {/* ── Down Market Alpha table ─────────────────────────────────── */}
-        <div className="mt-6">
-          <SectionHeader
-            title="Down Market Alpha"
-            subtitle="Average excess return (fund − benchmark) across all down-market rolling-return observations"
-          />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left font-medium text-gray-500 pb-2 pr-4">Fund</th>
-                  <th className="text-right font-medium text-gray-500 pb-2 px-3">Down Market Alpha</th>
-                  <th className="text-right font-medium text-gray-500 pb-2 pl-3">Down Periods Used</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {captureStats.map(({ fund, color, capture }) => (
-                  <tr key={fund.scheme_code} className="hover:bg-gray-50 transition-colors">
-                    <td className="py-3 pr-4">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                        <span className="font-medium text-gray-800 truncate" title={fund.scheme_name}>
-                          {shortName(fund.scheme_name)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      {isNaN(capture.downAlpha) ? (
-                        <span className="text-gray-400">N/A</span>
-                      ) : (
-                        <span className={`font-semibold ${capture.downAlpha >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {capture.downAlpha >= 0 ? '+' : ''}{capture.downAlpha.toFixed(2)}%
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 pl-3 text-right font-semibold text-gray-600">
-                      {capture.downPeriods > 0 ? capture.downPeriods : <span className="text-gray-400">—</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-xs text-gray-400 mt-2">
-            Down Market Alpha = mean(fund return − benchmark return) in all down-benchmark rolling-return observations.{' '}
-            <span className="text-emerald-600 font-medium">Positive</span> = fund lost less than the benchmark on average during downturns (downside protection).{' '}
-            <span className="text-rose-600 font-medium">Negative</span> = fund amplified losses relative to the benchmark (typically driven by expense ratio drag for index funds).
-          </p>
-        </div>
-
-        {/* ── Freefincal-style Capture Ratios (monthly CAGR method) ──── */}
-        {captureStats.some((s) => s.freefincal !== null) && (
-          <div className="mt-6">
-            <SectionHeader
-              title="Freefincal-style Capture Ratios"
-              subtitle="Monthly CAGR method · non-overlapping month-end NAV returns · benchmark months where return = 0 excluded"
-            />
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="text-left font-medium text-gray-500 pb-2 pr-4">Fund</th>
-                    <th className="text-right font-medium text-gray-500 pb-2 px-3">UCR</th>
-                    <th className="text-right font-medium text-gray-500 pb-2 px-3">DCR</th>
-                    <th className="text-right font-medium text-gray-500 pb-2 px-3">Capture Ratio</th>
-                    <th className="text-right font-medium text-gray-500 pb-2 px-3">Up Months</th>
-                    <th className="text-right font-medium text-gray-500 pb-2 pl-3">Down Months</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {captureStats.map(({ fund, color, freefincal }) => (
-                    <tr key={fund.scheme_code} className="hover:bg-gray-50 transition-colors">
-                      <td className="py-3 pr-4">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                          <span className="font-medium text-gray-800 truncate" title={fund.scheme_name}>
-                            {shortName(fund.scheme_name)}
-                          </span>
-                        </div>
-                      </td>
-                      {/* UCR: >100 = captured more up (emerald), <100 = amber */}
-                      <td className="py-3 px-3 text-right">
-                        {!freefincal || isNaN(freefincal.ucr) ? (
-                          <span className="text-gray-400">N/A</span>
-                        ) : (
-                          <span className={`font-semibold ${freefincal.ucr >= 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                            {freefincal.ucr.toFixed(1)}
-                          </span>
-                        )}
-                      </td>
-                      {/* DCR: <100 = protected in downturns (emerald), >100 = rose */}
-                      <td className="py-3 px-3 text-right">
-                        {!freefincal || isNaN(freefincal.dcr) ? (
-                          <span className="text-gray-400">N/A</span>
-                        ) : (
-                          <span className={`font-semibold ${freefincal.dcr <= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {freefincal.dcr.toFixed(1)}
-                          </span>
-                        )}
-                      </td>
-                      {/* Capture Ratio: >1 = ideal (emerald), <1 = rose */}
-                      <td className="py-3 px-3 text-right">
-                        {!freefincal || isNaN(freefincal.captureRatio) ? (
-                          <span className="text-gray-400">N/A</span>
-                        ) : (
-                          <span className={`font-semibold ${freefincal.captureRatio >= 1 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {freefincal.captureRatio.toFixed(2)}x
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-right font-semibold text-blue-600">
-                        {freefincal ? freefincal.upMonths : <span className="text-gray-400">—</span>}
-                      </td>
-                      <td className="py-3 pl-3 text-right font-semibold text-rose-600">
-                        {freefincal ? freefincal.downMonths : <span className="text-gray-400">—</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="text-xs text-gray-400 mt-2 space-y-0.5">
-              <p>
-                <span className="font-medium">Methodology:</span> Filter non-overlapping monthly returns to up-benchmark months (benchmark &gt; 0) and down-benchmark months (benchmark &lt; 0).
-                Compute annualised CAGR from each filtered set using the product formula: CAGR = [∏(1+rᵢ)]^(12/n) − 1.
-                UCR = upCAGR_fund / upCAGR_bench × 100. DCR = downCAGR_fund / downCAGR_bench × 100. Capture Ratio = UCR / DCR.
-              </p>
-              <p>
-                Based on full available monthly return history from the selected start date.{' '}
-                <span className="font-medium">Window-independent</span> — same monthly series regardless of active rolling window tab.
-              </p>
-              <p className="text-gray-300">
-                This matches the Freefincal capture ratio methodology. Compare with the arithmetic-mean UCR/DCR table above which uses overlapping rolling-return observations.
-              </p>
-            </div>
-          </div>
-        )}
+        <p className="text-xs text-gray-400 mt-2">
+          Down Market Alpha = mean(fund return − benchmark return) in all down-benchmark rolling-return observations.{' '}
+          <span className="text-emerald-600 font-medium">Positive</span> = fund lost less than the benchmark on average during downturns (downside protection).{' '}
+          <span className="text-rose-600 font-medium">Negative</span> = fund amplified losses relative to the benchmark.
+        </p>
       </div>
 
-      {/* ── Section 6b: Per-fund scatter + alpha charts ───────────────── */}
+      {/* ── Section 3: Per-fund scatter + alpha charts ───────────────── */}
       <div className="space-y-6">
         <SectionHeader
           title="Capture Scatter &amp; Rolling Alpha"

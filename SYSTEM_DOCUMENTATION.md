@@ -1050,16 +1050,17 @@ Five sub-tables, all computed **client-side in JavaScript** from the raw rolling
 | Risk-Return Scatter Map | Each fund plotted as risk (x) vs return (y); benchmark shown as reference |
 
 #### Card 3: Market Capture Analysis
-- **Arithmetic UCR/DCR**: classic up-capture / down-capture ratios from rolling returns
-  - UCR = mean(fund returns when benchmark up) / mean(benchmark up returns)
-  - DCR = mean(fund returns when benchmark down) / mean(benchmark down returns)
-- **Freefincal CAGR-based UCR/DCR**: based on non-overlapping monthly returns:
+- **Upside/Downside Capture (Primary)**: CAGR-based UCR/DCR using non-overlapping monthly returns (Freefincal methodology):
   - Sort months into benchmark-up and benchmark-down
-  - Compute compound return for fund and benchmark in each subset
-  - Ratio of compound returns gives capture ratio
-- **Capture Scatter**: each fund plotted as (DCR, UCR); ideal quadrant is high UCR + low DCR
+  - Compute compound return for fund and benchmark in each subset using CAGR product formula
+  - UCR = upCAGR_fund / upCAGR_bench × 100; DCR = downCAGR_fund / downCAGR_bench × 100
+  - Capture Ratio = UCR / DCR
+- **Down Market Alpha**: average excess return (fund − benchmark) in down-market rolling-return observations
+- **Capture Scatter**: each fund plotted as benchmark return (x) vs fund return (y) per observation
 - **Alpha Time Series**: rolling alpha chart (fund return minus benchmark return per window)
 - **Drawdown Stats Table**: from `POST /api/performance/fund-analytics` — shows peak date, trough date, max drawdown %, duration (days), recovery date, recovery duration
+
+> **Note:** The arithmetic-mean UCR/DCR table (based on rolling returns) has been removed from display due to the "small denominator problem" that produces extreme values for multi-year windows. The CAGR-based monthly method is now the sole displayed capture ratio metric.
 
 ### 9.4 Custom Hooks
 

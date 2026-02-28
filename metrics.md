@@ -289,12 +289,16 @@ Market capture analysis splits observations into **up-market** periods (benchmar
 
 **Two methods are implemented:**
 
-| Method | Input | Formula | Purpose |
+| Method | Input | Formula | UI Display |
 |---|---|---|---|
-| Arithmetic Mean | Rolling-return observations (overlapping) | Mean ratio | Quick relative comparison, consistent with Morningstar convention |
-| Freefincal CAGR | Monthly returns (non-overlapping) | CAGR product formula | Matches Freefincal published methodology, numerically accurate |
+| Arithmetic Mean | Rolling-return observations (overlapping) | Mean ratio | **Not displayed** — used only for Down Market Alpha |
+| Freefincal CAGR | Monthly returns (non-overlapping) | CAGR product formula | **Primary display** — main UCR/DCR table |
+
+> **Note:** The arithmetic mean method applied to multi-year rolling returns (3Y, 5Y) suffers from a "small denominator problem" — there are few periods where the benchmark is negative, and when it is, the values are small, producing extreme DCR values (e.g., 400+). The Freefincal CAGR method using monthly returns avoids this issue and is now the primary displayed metric.
 
 ### 7.1 UCR — Upside Capture Ratio (Arithmetic Mean)
+
+> **⚠️ Not displayed in UI.** This metric is computed internally but no longer shown as a primary metric due to the small-denominator problem with multi-year rolling returns. The Freefincal CAGR method (§7.7) is now the primary displayed metric. This section is retained for reference only.
 
 Filter to observations where $b_i > 0$ (benchmark was positive over that window):
 
@@ -310,6 +314,8 @@ where $\bar{f}^{\,\uparrow}$ = mean of fund returns in those up-market periods, 
 
 ### 7.2 DCR — Downside Capture Ratio (Arithmetic Mean)
 
+> **⚠️ Not displayed in UI.** See note in §7.1.
+
 Filter to observations where $b_i < 0$ (benchmark was negative):
 
 $$\text{DCR} = \frac{\bar{f}^{\,\downarrow}}{\bar{b}^{\,\downarrow}} \times 100$$
@@ -323,6 +329,8 @@ $$\text{DCR} = \frac{\bar{f}^{\,\downarrow}}{\bar{b}^{\,\downarrow}} \times 100$
 > **Why DCR uses the same sign convention:** Both $\bar{f}^{\,\downarrow}$ and $\bar{b}^{\,\downarrow}$ are negative in a down market. Dividing two negatives gives a positive ratio. A DCR of 80 means the fund fell only 80% as much as the benchmark — better.
 
 ### 7.3 Capture Ratio
+
+> **⚠️ Not displayed in UI (arithmetic mean version).** The displayed Capture Ratio uses the Freefincal CAGR method (§7.7).
 
 $$\text{Capture Ratio} = \frac{\text{UCR}}{\text{DCR}}$$
 
@@ -372,9 +380,9 @@ where $N_{\downarrow}$ = number of down-market observations.
 - **Positive:** The fund consistently lost less than the benchmark during downturns — downside protection. For active funds this reflects manager skill; for index funds this can reflect lower expense ratio drag.
 - **Negative:** The fund amplified losses relative to the benchmark. For passive index funds this is expected to be small and negative (expense ratio drag ≈ −0.1% to −0.5%).
 
-### 7.7 Freefincal-style UCR / DCR (CAGR Method)
+### 7.7 UCR / DCR — Primary Method (Monthly CAGR)
 
-This is an alternative, more accurate computation that uses **non-overlapping monthly returns** and the **CAGR product formula** — matching the methodology used by Freefincal.
+This is the **primary displayed metric** for capture ratios. It uses **non-overlapping monthly returns** and the **CAGR product formula** — matching the methodology used by Freefincal and avoiding the small-denominator problem that affects arithmetic-mean methods on multi-year rolling returns.
 
 ```mermaid
 flowchart TD
@@ -421,11 +429,11 @@ $$\text{Capture Ratio}_{\text{FF}} = \frac{\text{UCR}_{\text{FF}}}{\text{DCR}_{\
 |---|---|---|
 | Input | Overlapping rolling-return observations | Non-overlapping monthly returns |
 | Averaging | Simple mean of individual period returns | Geometric (compound) average |
-| Window dependency | Changes with active tab (1Y / 3Y / etc.) | Window-independent (full history) |
+| Window dependency | Changes with active tab (1Y / 3Y / etc.) | Window-independent (uses full monthly history within selected date range) |
 | Numeric match | Morningstar-style convention | Freefincal published methodology |
 | Serial correlation | High (highly overlapping observations) | None (non-overlapping months) |
 
-Both tables are displayed; use the Freefincal table for the most statistically rigorous comparison.
+The Freefincal CAGR table is the primary displayed metric; use it for capture ratio analysis.
 
 ---
 
@@ -488,7 +496,9 @@ flowchart LR
 
 ## 9. Observation Period Breakdown
 
-This table provides transparency on the **sample sizes** used in the Market Capture calculations:
+> **Note:** The separate "Observation Period Breakdown" table has been removed from the UI. Up/down month counts are now displayed inline in the primary Upside/Downside Capture table (§7.7).
+
+This section documents the underlying data for transparency:
 
 | Column | Definition |
 |---|---|
@@ -618,7 +628,7 @@ flowchart TD
         BCD["buildChartData()\nalign benchmark + funds → chartData[]"]
         COS["computeOutperformanceStats()"]
         CVS["computeVolatilityStats()"]
-        CCS["computeCaptureStats()\nArithmetic mean method"]
+        CCS["computeRollingCaptureStats()\nArithmetic mean method\n(internal only)"]
         CFF["computeFreefincalCaptureStats()\nMonthly CAGR method"]
         CMD2["compute_max_drawdown results\ndisplayed directly"]
     end

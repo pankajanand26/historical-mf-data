@@ -108,9 +108,22 @@ export function computeVolatilityStats(chartData, fund, rfPct) {
 }
 
 /**
- * Compute UCR, DCR, Capture Ratio, and consistency metrics.
+ * Compute UCR, DCR, Capture Ratio, and consistency metrics from rolling returns.
+ *
+ * ⚠️ IMPORTANT: This function applies the capture ratio formula to multi-year
+ * rolling returns, which causes a "small denominator problem" when there are
+ * few down-market observations. For 3Y/5Y windows, benchmark is rarely negative,
+ * and when it is, the small negative values produce extreme DCR values (e.g., 400+).
+ *
+ * This function is retained ONLY for:
+ *   - Down Market Alpha calculation (average excess return in down periods)
+ *   - Scatter plot data (fund vs benchmark per observation)
+ *   - Up/Down consistency percentages
+ *
+ * For UCR/DCR display, use computeFreefincalCaptureStats() which uses monthly
+ * returns with the CAGR product formula — the industry-standard approach.
  */
-export function computeCaptureStats(chartData, fund) {
+export function computeRollingCaptureStats(chartData, fund) {
   const key = `fund_${fund.scheme_code}`;
   const upFund = [], upBench = [], downFund = [], downBench = [];
   let upConsistCount = 0, downConsistCount = 0, totalCount = 0, downAlphaSum = 0;
@@ -295,7 +308,7 @@ export function computeAllStats(funds, chartData, rfPct, monthlyReturns) {
     color: FUND_COLORS[idx % FUND_COLORS.length],
     outperf: computeOutperformanceStats(chartData, fund),
     vol: computeVolatilityStats(chartData, fund, rfPct),
-    capture: computeCaptureStats(chartData, fund),
+    capture: computeRollingCaptureStats(chartData, fund),
     freefincal: computeFreefincalCaptureStats(monthlyReturns, fund),
     scatterData: buildScatterData(chartData, fund),
     alphaData: buildAlphaData(chartData, fund),
@@ -306,7 +319,7 @@ export function computeAllStats(funds, chartData, rfPct, monthlyReturns) {
 /**
  * Compute KPI summary values for display strip.
  */
-export function computeKPIs(allStats, analyticsData) {
+export function computeKPIs(allStats) {
   const kpis = [];
 
   // Best performer by avg alpha
@@ -321,39 +334,15 @@ export function computeKPIs(allStats, analyticsData) {
     });
   }
 
-  // Highest Sharpe
-  const withSharpe = allStats.filter((s) => !isNaN(s.vol.sharpeFund));
-  if (withSharpe.length) {
-    const best = withSharpe.reduce((a, b) => a.vol.sharpeFund > b.vol.sharpeFund ? a : b);
-    kpis.push({
-      label: 'Best Sharpe',
-      value: fmtRatio(best.vol.sharpeFund),
-      sub: shortNameMd(best.fund.scheme_name),
-      positive: best.vol.sharpeFund >= 0,
-    });
-  }
-
-  // Best capture ratio
-  const withCapture = allStats.filter((s) => !isNaN(s.capture.captureRatio));
+  // Best capture ratio (using Freefincal monthly CAGR method)
+  const withCapture = allStats.filter((s) => s.freefincal && !isNaN(s.freefincal.captureRatio));
   if (withCapture.length) {
-    const best = withCapture.reduce((a, b) => a.capture.captureRatio > b.capture.captureRatio ? a : b);
+    const best = withCapture.reduce((a, b) => a.freefincal.captureRatio > b.freefincal.captureRatio ? a : b);
     kpis.push({
       label: 'Best Capture',
-      value: `${fmtRatio(best.capture.captureRatio)}x`,
+      value: `${fmtRatio(best.freefincal.captureRatio)}x`,
       sub: shortNameMd(best.fund.scheme_name),
-      positive: best.capture.captureRatio >= 1,
-    });
-  }
-
-  // Deepest drawdown (from analytics)
-  if (analyticsData?.funds?.length) {
-    const worst = analyticsData.funds.reduce((a, b) =>
-      a.drawdown.max_drawdown < b.drawdown.max_drawdown ? a : b);
-    kpis.push({
-      label: 'Max Drawdown',
-      value: `${worst.drawdown.max_drawdown?.toFixed(1)}%`,
-      sub: shortNameMd(worst.scheme_name),
-      positive: false,
+      positive: best.freefincal.captureRatio >= 1,
     });
   }
 

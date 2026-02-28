@@ -7,15 +7,15 @@ import { WINDOWS } from '../../utils/constants';
  * Positioned below header, above tabs.
  * Also contains global window selector (1Y/3Y/5Y/10Y).
  */
-const KpiStrip = ({ data, analyticsData, rfRate, activeWindow, setActiveWindow }) => {
+const KpiStrip = ({ data, rfRate, activeWindow, setActiveWindow }) => {
   const avail = data?.benchmark_windows?.map((bw) => bw.window) ?? [];
   // Use global activeWindow if available, fallback to first available
   const curWin = avail.includes(activeWindow) ? activeWindow : avail[0] ?? '3y';
   const benchWin = data?.benchmark_windows?.find((bw) => bw.window === curWin);
   const rfPct = rfPeriodPct(rfRate, benchWin?.window_days ?? 365, 'absolute');
   const chartData = buildChartData(data?.funds ?? [], benchWin, 'absolute');
-  const allStats = computeAllStats(data?.funds ?? [], chartData, rfPct);
-  const kpis = computeKPIs(allStats, analyticsData);
+  const allStats = computeAllStats(data?.funds ?? [], chartData, rfPct, data?.monthly_returns);
+  const kpis = computeKPIs(allStats);
 
   if (kpis.length === 0 && avail.length === 0) return null;
 

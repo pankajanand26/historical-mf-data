@@ -98,7 +98,6 @@ const App = () => {
       {data && !loading && (
         <KpiStrip
           data={data}
-          analyticsData={analyticsData}
           rfRate={rfRate}
           activeWindow={activeWindow}
           setActiveWindow={setActiveWindow}
