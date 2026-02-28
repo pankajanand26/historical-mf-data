@@ -42,13 +42,17 @@ export const DEFAULT_RF_RATE = 0.065;
 // Tab definitions for the main chart view
 export const TABS = [
   { id: 'returns', label: 'Returns' },
-  { id: 'performance', label: 'Performance' },
+  { id: 'performance', label: 'Perf' },
   { id: 'capture', label: 'Capture' },
   { id: 'drawdown', label: 'Drawdown' },
-  { id: 'scorecard', label: 'Scorecard' },
-  { id: 'distribution', label: 'Distribution' },
+  { id: 'scorecard', label: 'Score' },
+  { id: 'distribution', label: 'Dist' },
+  { id: 'monthly', label: 'Monthly' },
+];
+
+// SIP tools grouped separately (accessed via dropdown)
+export const SIP_TABS = [
   { id: 'sip', label: 'SIP Planner' },
   { id: 'reverse-sip', label: 'Reverse SIP' },
   { id: 'retirement', label: 'Retirement' },
-  { id: 'monthly', label: 'Monthly' },
 ];
