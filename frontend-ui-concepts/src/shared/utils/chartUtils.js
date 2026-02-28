@@ -336,7 +336,184 @@ export function computeAllStats(funds, chartData, rfPct) {
   }));
 }
 
-// ─── KPI summary helpers (used by Editorial + Wizard) ────────────────────────
+// ─── Formatters (money) ───────────────────────────────────────────────────────
+
+export function fmtLakh(v) {
+  if (v == null || isNaN(v)) return 'N/A';
+  if (Math.abs(v) >= 1e7) return `₹${(v / 1e7).toFixed(2)} Cr`;
+  if (Math.abs(v) >= 1e5) return `₹${(v / 1e5).toFixed(2)} L`;
+  return `₹${Math.round(v).toLocaleString('en-IN')}`;
+}
+
+// ─── Score normalization ──────────────────────────────────────────────────────
+
+/**
+ * Normalize each fund's metrics into 0–100 scores across 5 dimensions.
+ * Min-max scaled within the comparison set.
+ * Dimensions: returns (avgAlpha), risk (sharpeFund), consistency (outperformedPct),
+ *             capture (captureRatio), drawdown (max_drawdown, less negative = better).
+ */
+export function computeFundScores(allStats, analyticsData) {
+  const dims = ['returns', 'risk', 'consistency', 'capture', 'drawdown'];
+
+  const raw = allStats.map((s) => {
+    let dd = null;
+    if (analyticsData?.funds) {
+      const af = analyticsData.funds.find((f) => f.scheme_code === s.fund.scheme_code);
+      if (af) dd = af.drawdown?.max_drawdown ?? null; // negative, less negative = better
+    }
+    return {
+      fund: s.fund,
+      color: s.color,
+      raw: {
+        returns: s.outperf?.avgAlpha ?? null,
+        risk: s.vol?.sharpeFund ?? null,
+        consistency: s.outperf?.outperformedPct ?? null,
+        capture: s.capture?.captureRatio ?? null,
+        drawdown: dd,
+      },
+    };
+  });
+
+  const normalize = (dim) => {
+    const vals = raw.map((r) => r.raw[dim]).filter((v) => v != null && !isNaN(v));
+    if (vals.length === 0) return raw.map(() => null);
+    const lo = Math.min(...vals);
+    const hi = Math.max(...vals);
+    const range = hi - lo;
+    return raw.map((r) => {
+      const v = r.raw[dim];
+      if (v == null || isNaN(v)) return null;
+      return range === 0 ? 75 : ((v - lo) / range) * 100;
+    });
+  };
+
+  const normalized = {};
+  for (const d of dims) normalized[d] = normalize(d);
+
+  return raw.map((r, i) => {
+    const scores = {};
+    for (const d of dims) scores[d] = normalized[d][i];
+    const valid = dims.filter((d) => scores[d] != null);
+    const overall = valid.length ? valid.reduce((s, d) => s + scores[d], 0) / valid.length : null;
+    return { ...r, scores, overall };
+  });
+}
+
+export function scoreGrade(score) {
+  if (score == null || isNaN(score)) return { grade: 'N/A', color: '#64748b' };
+  if (score >= 85) return { grade: 'A+', color: '#22c55e' };
+  if (score >= 70) return { grade: 'A',  color: '#4ade80' };
+  if (score >= 55) return { grade: 'B',  color: '#facc15' };
+  if (score >= 40) return { grade: 'C',  color: '#fb923c' };
+  return { grade: 'D', color: '#ef4444' };
+}
+
+export function scoreColor(score) {
+  if (score == null || isNaN(score)) return '#1e293b';
+  if (score >= 70) return '#14532d';
+  if (score >= 40) return '#78350f';
+  return '#450a0a';
+}
+
+// ─── SIP / Goal projection helpers ───────────────────────────────────────────
+
+/** Future value of a monthly SIP given an annual return rate (decimal). */
+export function sipFV(annualReturn, monthlySIP, months) {
+  if (months <= 0) return 0;
+  const r = Math.pow(1 + annualReturn, 1 / 12) - 1;
+  if (Math.abs(r) < 1e-10) return monthlySIP * months;
+  return monthlySIP * ((Math.pow(1 + r, months) - 1) / r) * (1 + r);
+}
+
+/**
+ * Required annual return so that a SIP reaches `target` in `months`.
+ * Returns decimal (e.g. 0.12 = 12% p.a.). Uses binary search.
+ */
+export function requiredAnnualReturn(monthlySIP, months, target) {
+  if (target <= monthlySIP * months) return 0; // trivially reachable with 0% return
+  let lo = -0.5, hi = 5.0;
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    if (sipFV(mid, monthlySIP, months) < target) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * Extract annualized return distribution for a fund/window from API data.
+ * Returns an array of numbers in % (e.g. [12.4, 8.7, ...]).
+ */
+export function extractReturnDist(data, fundKey, windowId) {
+  if (!data) return [];
+  const fundData = fundKey === 'benchmark'
+    ? data.benchmark
+    : data.funds?.find((f) => `fund_${f.scheme_code}` === fundKey || f.scheme_code === fundKey);
+  if (!fundData) return [];
+
+  const windowDays = (() => {
+    const map = { '1y': 365, '3y': 1095, '5y': 1825, '10y': 3650 };
+    return map[windowId] ?? 1095;
+  })();
+
+  const win = fundData.windows?.find((w) => w.window === windowId);
+  if (!win?.data?.length) return [];
+
+  return win.data
+    .map((pt) => applyReturnType(pt.value, windowDays, 'cagr'))
+    .filter((v) => v != null && !isNaN(v));
+}
+
+/**
+ * Build fan-chart projection data for a SIP across years 0..maxYears.
+ * Returns [{year, p10, p25, p50, p75, p90, invested}].
+ */
+export function computeGoalProjections(returnDistPct, monthlySIP, maxYears) {
+  if (!returnDistPct.length) return [];
+  const sorted = [...returnDistPct].sort((a, b) => a - b);
+  const pct = (p) => {
+    const idx = Math.min(Math.floor((p / 100) * sorted.length), sorted.length - 1);
+    return sorted[idx] / 100; // convert % → decimal
+  };
+
+  const result = [];
+  for (let y = 0; y <= maxYears; y++) {
+    const months = y * 12;
+    result.push({
+      year: y,
+      p10: Math.round(sipFV(pct(10), monthlySIP, months)),
+      p25: Math.round(sipFV(pct(25), monthlySIP, months)),
+      p50: Math.round(sipFV(pct(50), monthlySIP, months)),
+      p75: Math.round(sipFV(pct(75), monthlySIP, months)),
+      p90: Math.round(sipFV(pct(90), monthlySIP, months)),
+      invested: monthlySIP * months,
+    });
+  }
+  return result;
+}
+
+/**
+ * Probability (%) that a SIP reaches `target` in `months`
+ * given a return distribution in % (e.g. [12.4, 8.7, ...]).
+ */
+export function goalProbability(returnDistPct, monthlySIP, months, target) {
+  if (!returnDistPct.length || !target) return null;
+  const successes = returnDistPct.filter((r) => sipFV(r / 100, monthlySIP, months) >= target);
+  return (successes.length / returnDistPct.length) * 100;
+}
+
+/**
+ * Milestone hit rate: % of return distribution observations (in %)
+ * that are >= requiredReturn (decimal).
+ */
+export function milestoneHitRate(returnDistPct, requiredReturn) {
+  if (!returnDistPct.length) return null;
+  const successes = returnDistPct.filter((r) => r / 100 >= requiredReturn);
+  return (successes.length / returnDistPct.length) * 100;
+}
+
+// ─── KPI summary helpers (used by Terminal) ───────────────────────────────────
 
 export function computeKPIs(funds, allStats, analyticsData) {
   const kpis = [];

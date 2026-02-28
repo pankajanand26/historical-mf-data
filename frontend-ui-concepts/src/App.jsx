@@ -1,12 +1,22 @@
 import { useState } from 'react';
 import ConceptSelector from './ConceptSelector';
 import TerminalApp from './concepts/1-terminal/TerminalApp';
-import EditorialApp from './concepts/2-editorial/EditorialApp';
+import WorkbenchApp from './concepts/2-workbench/WorkbenchApp';
+import HeatmapApp from './concepts/3-heatmap/HeatmapApp';
+import ProjectorApp from './concepts/4-projector/ProjectorApp';
+import MilestoneApp from './concepts/5-milestone/MilestoneApp';
+import ArenaApp from './concepts/6-arena/ArenaApp';
+import AdvisorApp from './concepts/7-advisor/AdvisorApp';
 
 const CONCEPTS = {
   selector: null,
   1: TerminalApp,
-  2: EditorialApp,
+  2: WorkbenchApp,
+  3: HeatmapApp,
+  4: ProjectorApp,
+  5: MilestoneApp,
+  6: ArenaApp,
+  7: AdvisorApp,
 };
 
 const App = () => {
