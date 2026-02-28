@@ -57,8 +57,7 @@ const SectionLabel = ({ children }) => (
 );
 
 // ── Returns section ────────────────────────────────────────────────────────────
-const ReturnsSection = ({ data, rfRate }) => {
-  const [activeWindow, setActiveWindow] = useState('3y');
+const ReturnsSection = ({ data, rfRate, activeWindow, setActiveWindow }) => {
   const [returnType, setReturnType] = useState('absolute');
   const avail = useMemo(() => data?.benchmark_windows?.map((bw) => bw.window) ?? [], [data]);
   const curWin = avail.includes(activeWindow) ? activeWindow : (avail[0] ?? '3y');
@@ -153,8 +152,7 @@ const ReturnsSection = ({ data, rfRate }) => {
 };
 
 // ── Risk section ───────────────────────────────────────────────────────────────
-const RiskSection = ({ data, rfRate }) => {
-  const [activeWindow, setActiveWindow] = useState('3y');
+const RiskSection = ({ data, rfRate, activeWindow }) => {
   const avail = useMemo(() => data?.benchmark_windows?.map((bw) => bw.window) ?? [], [data]);
   const curWin = avail.includes(activeWindow) ? activeWindow : (avail[0] ?? '3y');
   const benchWin = data?.benchmark_windows?.find((bw) => bw.window === curWin);
@@ -168,14 +166,6 @@ const RiskSection = ({ data, rfRate }) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1">
-        {avail.map((w) => (
-          <button key={w} onClick={() => setActiveWindow(w)}
-            className={`px-2.5 py-1 text-xs rounded transition-colors ${curWin === w ? 'bg-terminal-amber text-terminal-bg font-bold' : 'text-terminal-muted border border-terminal-border hover:border-terminal-amber'}`}>
-            {WINDOWS.find((x) => x.id === w)?.label ?? w.toUpperCase()}
-          </button>
-        ))}
-      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         <div>
@@ -246,8 +236,7 @@ const RiskSection = ({ data, rfRate }) => {
 };
 
 // ── Capture section ────────────────────────────────────────────────────────────
-const CaptureSection = ({ data, rfRate }) => {
-  const [activeWindow, setActiveWindow] = useState('3y');
+const CaptureSection = ({ data, rfRate, activeWindow }) => {
   const avail = useMemo(() => data?.benchmark_windows?.map((bw) => bw.window) ?? [], [data]);
   const curWin = avail.includes(activeWindow) ? activeWindow : (avail[0] ?? '3y');
   const benchWin = data?.benchmark_windows?.find((bw) => bw.window === curWin);
@@ -257,14 +246,6 @@ const CaptureSection = ({ data, rfRate }) => {
 
   return (
     <div className="space-y-5">
-      <div className="flex gap-1">
-        {avail.map((w) => (
-          <button key={w} onClick={() => setActiveWindow(w)}
-            className={`px-2.5 py-1 text-xs rounded transition-colors ${curWin === w ? 'bg-terminal-amber text-terminal-bg font-bold' : 'text-terminal-muted border border-terminal-border hover:border-terminal-amber'}`}>
-            {WINDOWS.find((x) => x.id === w)?.label ?? w.toUpperCase()}
-          </button>
-        ))}
-      </div>
 
       {/* ── Upside / Downside Capture (monthly CAGR method) ───────── */}
       <SectionLabel>Upside / Downside Capture</SectionLabel>
@@ -381,8 +362,7 @@ const CaptureSection = ({ data, rfRate }) => {
 };
 
 // ── Drawdown section ───────────────────────────────────────────────────────────
-const DrawdownSection = ({ data, analyticsData, analyticsLoading, rfRate }) => {
-  const [activeWindow, setActiveWindow] = useState('3y');
+const DrawdownSection = ({ data, analyticsData, analyticsLoading, rfRate, activeWindow }) => {
   const avail = useMemo(() => data?.benchmark_windows?.map((bw) => bw.window) ?? [], [data]);
   const curWin = avail.includes(activeWindow) ? activeWindow : (avail[0] ?? '3y');
   const benchWin = data?.benchmark_windows?.find((bw) => bw.window === curWin);
@@ -459,14 +439,6 @@ const DrawdownSection = ({ data, analyticsData, analyticsLoading, rfRate }) => {
       <div>
         <div className="flex items-center gap-3 mb-3">
           <SectionLabel>Drawdown Charts</SectionLabel>
-          <div className="flex gap-1">
-            {avail.map((w) => (
-              <button key={w} onClick={() => setActiveWindow(w)}
-                className={`px-2.5 py-1 text-xs rounded transition-colors ${curWin === w ? 'bg-terminal-amber text-terminal-bg font-bold' : 'text-terminal-muted border border-terminal-border hover:border-terminal-amber'}`}>
-                {WINDOWS.find((x) => x.id === w)?.label ?? w.toUpperCase()}
-              </button>
-            ))}
-          </div>
         </div>
         <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
           {allStats.map(({ fund, color, ddSeries }) => (
@@ -495,8 +467,7 @@ const DrawdownSection = ({ data, analyticsData, analyticsLoading, rfRate }) => {
 };
 
 // ── Scorecard section ──────────────────────────────────────────────────────────
-const ScorecardSection = ({ data, analyticsData, rfRate }) => {
-  const [activeWindow, setActiveWindow] = useState('3y');
+const ScorecardSection = ({ data, analyticsData, rfRate, activeWindow }) => {
   const avail = useMemo(() => data?.benchmark_windows?.map((bw) => bw.window) ?? [], [data]);
   const curWin = avail.includes(activeWindow) ? activeWindow : (avail[0] ?? '3y');
   const benchWin = data?.benchmark_windows?.find((bw) => bw.window === curWin);
@@ -510,14 +481,6 @@ const ScorecardSection = ({ data, analyticsData, rfRate }) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1">
-        {avail.map((w) => (
-          <button key={w} onClick={() => setActiveWindow(w)}
-            className={`px-2.5 py-1 text-xs rounded transition-colors ${curWin === w ? 'bg-terminal-amber text-terminal-bg font-bold' : 'text-terminal-muted border border-terminal-border hover:border-terminal-amber'}`}>
-            {WINDOWS.find((x) => x.id === w)?.label ?? w.toUpperCase()}
-          </button>
-        ))}
-      </div>
 
       <SectionLabel>Fund Scorecard (0-100 scale)</SectionLabel>
       <p className="text-[10px] text-terminal-muted -mt-3 mb-3">
@@ -563,8 +526,7 @@ const ScorecardSection = ({ data, analyticsData, rfRate }) => {
 };
 
 // ── Distribution section (histogram) ───────────────────────────────────────────
-const DistributionSection = ({ data, rfRate }) => {
-  const [activeWindow, setActiveWindow] = useState('3y');
+const DistributionSection = ({ data, rfRate, activeWindow }) => {
   const [activeFund, setActiveFund] = useState(null);
   const avail = useMemo(() => data?.benchmark_windows?.map((bw) => bw.window) ?? [], [data]);
   const curWin = avail.includes(activeWindow) ? activeWindow : (avail[0] ?? '3y');
@@ -613,14 +575,6 @@ const DistributionSection = ({ data, rfRate }) => {
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex gap-1">
-          {avail.map((w) => (
-            <button key={w} onClick={() => setActiveWindow(w)}
-              className={`px-2.5 py-1 text-xs rounded transition-colors ${curWin === w ? 'bg-terminal-amber text-terminal-bg font-bold' : 'text-terminal-muted border border-terminal-border hover:border-terminal-amber'}`}>
-              {WINDOWS.find((x) => x.id === w)?.label ?? w.toUpperCase()}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-1">
           {funds.map((f, i) => (
             <button key={f.scheme_code} onClick={() => setActiveFund(f.scheme_code)}
               className={`px-2.5 py-1 text-xs rounded transition-colors flex items-center gap-1 ${selectedFundCode === f.scheme_code ? 'bg-terminal-surface border border-terminal-amber' : 'text-terminal-muted border border-terminal-border hover:border-terminal-amber'}`}>
@@ -661,8 +615,7 @@ const DistributionSection = ({ data, rfRate }) => {
 };
 
 // ── SIP Planner section ────────────────────────────────────────────────────────
-const SipPlannerSection = ({ data, rfRate }) => {
-  const [activeWindow, setActiveWindow] = useState('3y');
+const SipPlannerSection = ({ data, rfRate, activeWindow }) => {
   const [sipAmount, setSipAmount] = useState(10000);
   const [horizonYears, setHorizonYears] = useState(10);
   const [targetCorpus, setTargetCorpus] = useState(2500000);
@@ -694,14 +647,6 @@ const SipPlannerSection = ({ data, rfRate }) => {
     <div className="space-y-4">
       {/* Controls */}
       <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex gap-1">
-          {avail.map((w) => (
-            <button key={w} onClick={() => setActiveWindow(w)}
-              className={`px-2.5 py-1 text-xs rounded transition-colors ${curWin === w ? 'bg-terminal-amber text-terminal-bg font-bold' : 'text-terminal-muted border border-terminal-border hover:border-terminal-amber'}`}>
-              {WINDOWS.find((x) => x.id === w)?.label ?? w.toUpperCase()}
-            </button>
-          ))}
-        </div>
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-terminal-muted">SIP</span>
           <input type="number" value={sipAmount} onChange={(e) => setSipAmount(Math.max(500, parseInt(e.target.value) || 500))}
@@ -890,9 +835,9 @@ const MonthlyHeatmapSection = ({ data }) => {
 };
 
 // ── KPI Summary Strip ──────────────────────────────────────────────────────────
-const KpiStrip = ({ data, rfRate }) => {
+const KpiStrip = ({ data, rfRate, activeWindow, setActiveWindow }) => {
   const avail = data?.benchmark_windows?.map((bw) => bw.window) ?? [];
-  const curWin = avail.includes('3y') ? '3y' : (avail[0] ?? '3y');
+  const curWin = avail.includes(activeWindow) ? activeWindow : (avail[0] ?? '3y');
   const benchWin = data?.benchmark_windows?.find((bw) => bw.window === curWin);
   const rfPct = rfPeriodPct(rfRate, benchWin?.window_days ?? 365, 'absolute');
   const chartData = buildChartData(data?.funds ?? [], benchWin, 'absolute');
@@ -903,15 +848,28 @@ const KpiStrip = ({ data, rfRate }) => {
 
   return (
     <div className="flex-shrink-0 border-b border-terminal-border bg-terminal-surface/50 px-5 py-2">
-      <div className="flex items-center gap-6 overflow-x-auto">
-        <span className="text-[10px] text-terminal-muted uppercase tracking-widest flex-shrink-0">KPIs ({curWin.toUpperCase()})</span>
-        {kpis.map((kpi, i) => (
-          <div key={i} className="flex-shrink-0 flex items-center gap-2">
-            <span className="text-[10px] text-terminal-muted">{kpi.label}:</span>
-            <span className={`text-sm font-mono font-bold ${kpi.positive ? 'text-terminal-green' : 'text-terminal-red'}`}>{kpi.value}</span>
-            <span className="text-[9px] text-terminal-muted max-w-[100px] truncate">{kpi.sub}</span>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-6 overflow-x-auto flex-1 min-w-0">
+          <span className="text-[10px] text-terminal-muted uppercase tracking-widest flex-shrink-0">KPIs ({curWin.toUpperCase()})</span>
+          {kpis.map((kpi, i) => (
+            <div key={i} className="flex-shrink-0 flex items-center gap-2">
+              <span className="text-[10px] text-terminal-muted">{kpi.label}:</span>
+              <span className={`text-sm font-mono font-bold ${kpi.positive ? 'text-terminal-green' : 'text-terminal-red'}`}>{kpi.value}</span>
+              <span className="text-[9px] text-terminal-muted max-w-[100px] truncate">{kpi.sub}</span>
+            </div>
+          ))}
+        </div>
+        {avail.length > 0 && setActiveWindow && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="text-[10px] text-terminal-muted uppercase tracking-widest mr-1">WIN</span>
+            {avail.map((w) => (
+              <button key={w} onClick={() => setActiveWindow(w)}
+                className={`px-2.5 py-1 text-xs font-mono rounded transition-colors ${curWin === w ? 'bg-terminal-amber text-terminal-bg font-bold' : 'text-terminal-muted border border-terminal-border hover:border-terminal-amber'}`}>
+                {WINDOWS.find((x) => x.id === w)?.label ?? w.toUpperCase()}
+              </button>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -919,11 +877,12 @@ const KpiStrip = ({ data, rfRate }) => {
 
 // ── Main chart component ───────────────────────────────────────────────────────
 const TerminalChart = ({ data, analyticsData, analyticsLoading, loading, error, activeSection, onSectionChange, hasData, rfRate }) => {
+  const [activeWindow, setActiveWindow] = useState('3y');
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* KPI strip - only show when data is loaded */}
       {!loading && !error && data && (
-        <KpiStrip data={data} rfRate={rfRate} />
+        <KpiStrip data={data} rfRate={rfRate} activeWindow={activeWindow} setActiveWindow={setActiveWindow} />
       )}
 
       {/* Main content area */}
@@ -948,13 +907,13 @@ const TerminalChart = ({ data, analyticsData, analyticsLoading, loading, error, 
         )}
         {!loading && !error && data && (
           <>
-            {activeSection === 'returns' && <ReturnsSection data={data} rfRate={rfRate} />}
-            {activeSection === 'risk' && <RiskSection data={data} rfRate={rfRate} />}
-            {activeSection === 'capture' && <CaptureSection data={data} rfRate={rfRate} />}
-            {activeSection === 'drawdown' && <DrawdownSection data={data} analyticsData={analyticsData} analyticsLoading={analyticsLoading} rfRate={rfRate} />}
-            {activeSection === 'scorecard' && <ScorecardSection data={data} analyticsData={analyticsData} rfRate={rfRate} />}
-            {activeSection === 'dist' && <DistributionSection data={data} rfRate={rfRate} />}
-            {activeSection === 'sip' && <SipPlannerSection data={data} rfRate={rfRate} />}
+            {activeSection === 'returns' && <ReturnsSection data={data} rfRate={rfRate} activeWindow={activeWindow} setActiveWindow={setActiveWindow} />}
+            {activeSection === 'risk' && <RiskSection data={data} rfRate={rfRate} activeWindow={activeWindow} />}
+            {activeSection === 'capture' && <CaptureSection data={data} rfRate={rfRate} activeWindow={activeWindow} />}
+            {activeSection === 'drawdown' && <DrawdownSection data={data} analyticsData={analyticsData} analyticsLoading={analyticsLoading} rfRate={rfRate} activeWindow={activeWindow} />}
+            {activeSection === 'scorecard' && <ScorecardSection data={data} analyticsData={analyticsData} rfRate={rfRate} activeWindow={activeWindow} />}
+            {activeSection === 'dist' && <DistributionSection data={data} rfRate={rfRate} activeWindow={activeWindow} />}
+            {activeSection === 'sip' && <SipPlannerSection data={data} rfRate={rfRate} activeWindow={activeWindow} />}
             {activeSection === 'monthly' && <MonthlyHeatmapSection data={data} />}
           </>
         )}
