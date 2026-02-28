@@ -67,11 +67,11 @@ const FundScoreCard = ({ scored, idx, expanded, onToggle }) => {
       {/* Expanded metrics */}
       {expanded && (
         <div className="border-t border-slate-700 px-5 py-4 grid grid-cols-2 gap-x-8 gap-y-3 text-xs">
-          <div className="flex justify-between"><span className="text-slate-400">Avg Alpha</span><span className="text-slate-100 font-mono">{fmt2(raw.raw.returns)}</span></div>
-          <div className="flex justify-between"><span className="text-slate-400">Sharpe</span><span className="text-slate-100 font-mono">{fmtRatio(raw.raw.risk)}</span></div>
-          <div className="flex justify-between"><span className="text-slate-400">Beat Rate</span><span className="text-slate-100 font-mono">{raw.raw.consistency != null ? `${raw.raw.consistency.toFixed(1)}%` : 'N/A'}</span></div>
-          <div className="flex justify-between"><span className="text-slate-400">Capture Ratio</span><span className="text-slate-100 font-mono">{fmtRatio(raw.raw.capture)}</span></div>
-          <div className="flex justify-between"><span className="text-slate-400">Max Drawdown</span><span className="text-slate-100 font-mono">{raw.raw.drawdown != null ? `${raw.raw.drawdown.toFixed(1)}%` : 'N/A'}</span></div>
+          <div className="flex justify-between"><span className="text-slate-400">Avg Alpha</span><span className="text-slate-100 font-mono">{fmt2(raw.returns)}</span></div>
+          <div className="flex justify-between"><span className="text-slate-400">Sharpe</span><span className="text-slate-100 font-mono">{fmtRatio(raw.risk)}</span></div>
+          <div className="flex justify-between"><span className="text-slate-400">Beat Rate</span><span className="text-slate-100 font-mono">{raw.consistency != null ? `${raw.consistency.toFixed(1)}%` : 'N/A'}</span></div>
+          <div className="flex justify-between"><span className="text-slate-400">Capture Ratio</span><span className="text-slate-100 font-mono">{fmtRatio(raw.capture)}</span></div>
+          <div className="flex justify-between"><span className="text-slate-400">Max Drawdown</span><span className="text-slate-100 font-mono">{raw.drawdown != null ? `${raw.drawdown.toFixed(1)}%` : 'N/A'}</span></div>
         </div>
       )}
     </div>
@@ -99,8 +99,8 @@ const WorkbenchChart = ({ data, analyticsData, loading, error }) => {
 
   const allStats = useMemo(() => {
     if (!chartData.length || !data?.funds?.length) return [];
-    return computeAllStats(data.funds, chartData, 0.065 * (activeWin?.window_days ?? 1095) / 365);
-  }, [chartData, data, activeWin]);
+    return computeAllStats(data.funds, chartData, 6.5);
+  }, [chartData, data]);
 
   const scored = useMemo(() => {
     if (!allStats.length) return [];

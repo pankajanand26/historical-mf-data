@@ -212,8 +212,8 @@ const ControlsBar = ({
     <DatePopover datePreset={datePreset} startDate={startDate} endDate={endDate}
       onPreset={onDatePresetChange} onStart={onStartDateChange} onEnd={onEndDateChange} />
     <button onClick={onAnalyze} disabled={!canAnalyze}
-      className="ml-auto flex items-center gap-2 px-4 py-1.5 rounded text-xs font-bold transition-all"
-      style={canAnalyze ? { backgroundColor: accentColor ?? '#6366f1', color: '#fff' } : {}}
+      className="ml-auto flex items-center gap-2 px-4 py-1.5 rounded text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+      style={canAnalyze ? { backgroundColor: accentColor ?? '#6366f1', color: '#fff' } : { backgroundColor: '#334155', color: '#64748b' }}
     >
       {loading
         ? <><svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d={SPIN} /></svg> LOADING…</>

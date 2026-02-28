@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRollingReturns } from '../../shared/hooks/useRollingReturns';
 import { useFundAnalytics } from '../../shared/hooks/useFundAnalytics';
 import { getDateRange } from '../../shared/utils/chartUtils';
@@ -30,20 +30,32 @@ const HeatmapApp = () => {
     fetchAnalytics(params);
   }, [canAnalyze, selectedFunds, selectedBenchmark, windows, datePreset, startDate, endDate, fetchReturns, fetchAnalytics]);
 
+  // Auto-run analysis when fund/benchmark selection changes
+  useEffect(() => {
+    if (selectedFunds.length === 0 || !selectedBenchmark || windows.length === 0) return;
+    const { startDate: sd, endDate: ed } = getDateRange(datePreset, startDate, endDate);
+    const params = {
+      schemeCodes: selectedFunds.map((f) => f.scheme_code),
+      benchmarkCode: selectedBenchmark.scheme_code,
+      startDate: sd, endDate: ed,
+    };
+    fetchReturns({ ...params, windows });
+    fetchAnalytics(params);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFunds, selectedBenchmark]);
+
   const handleFundAdd = useCallback((fund) => {
     setSelectedFunds((prev) => {
       if (prev.some((f) => f.scheme_code === fund.scheme_code) || prev.length >= 5) return prev;
       return [...prev, fund];
     });
-    reset(); resetAnalytics();
-  }, [reset, resetAnalytics]);
+  }, []);
 
   const handleFundRemove = useCallback((code) => {
     setSelectedFunds((prev) => prev.filter((f) => f.scheme_code !== code));
-    reset(); resetAnalytics();
-  }, [reset, resetAnalytics]);
+  }, []);
 
-  const handleBenchmarkSelect = (b) => { setSelectedBenchmark(b); reset(); resetAnalytics(); };
+  const handleBenchmarkSelect = (b) => { setSelectedBenchmark(b); };
 
   return (
     <div className="min-h-screen bg-white text-slate-800 flex flex-col">

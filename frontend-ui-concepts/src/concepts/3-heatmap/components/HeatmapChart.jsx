@@ -3,7 +3,7 @@
  * Color-coded grid for instant cross-fund comparison.
  * Crown badge on winner per column. Click cell to expand full details.
  */
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   buildChartData, computeAllStats, computeFundScores,
   fmt2, fmtRatio, shortName, FUND_COLORS,
@@ -50,8 +50,8 @@ const HeatmapChart = ({ data, analyticsData, loading, error }) => {
 
   const allStats = useMemo(() => {
     if (!chartData.length || !data?.funds?.length) return [];
-    return computeAllStats(data.funds, chartData, 0.065 * (activeWin?.window_days ?? 1095) / 365);
-  }, [chartData, data, activeWin]);
+    return computeAllStats(data.funds, chartData, 6.5);
+  }, [chartData, data]);
 
   const scored = useMemo(() => {
     if (!allStats.length) return [];
@@ -146,8 +146,8 @@ const HeatmapChart = ({ data, analyticsData, loading, error }) => {
             </thead>
             <tbody>
               {scored.map((s, fi) => (
-                <>
-                  <tr key={s.fund.scheme_code}
+                <React.Fragment key={s.fund.scheme_code}>
+                  <tr
                     className="border-b border-slate-100 hover:bg-slate-50/50 cursor-pointer transition-colors"
                     onClick={() => setExpandedFund(expandedFund === fi ? null : fi)}>
                     {/* Fund name */}
@@ -198,28 +198,28 @@ const HeatmapChart = ({ data, analyticsData, loading, error }) => {
                           <div>
                             <p className="font-bold text-slate-600 mb-2">Returns</p>
                             <div className="space-y-1 text-slate-500">
-                              <div className="flex justify-between"><span>Avg Alpha</span><span className="font-mono text-slate-700">{fmt2(s.raw?.raw?.returns)}</span></div>
-                              <div className="flex justify-between"><span>Beat Rate</span><span className="font-mono text-slate-700">{s.raw?.raw?.consistency != null ? `${s.raw.raw.consistency.toFixed(1)}%` : 'N/A'}</span></div>
+                              <div className="flex justify-between"><span>Avg Alpha</span><span className="font-mono text-slate-700">{fmt2(s.raw?.returns)}</span></div>
+                              <div className="flex justify-between"><span>Beat Rate</span><span className="font-mono text-slate-700">{s.raw?.consistency != null ? `${s.raw.consistency.toFixed(1)}%` : 'N/A'}</span></div>
                             </div>
                           </div>
                           <div>
                             <p className="font-bold text-slate-600 mb-2">Risk</p>
                             <div className="space-y-1 text-slate-500">
-                              <div className="flex justify-between"><span>Sharpe</span><span className="font-mono text-slate-700">{fmtRatio(s.raw?.raw?.risk)}</span></div>
-                              <div className="flex justify-between"><span>Capture Ratio</span><span className="font-mono text-slate-700">{fmtRatio(s.raw?.raw?.capture)}</span></div>
+                              <div className="flex justify-between"><span>Sharpe</span><span className="font-mono text-slate-700">{fmtRatio(s.raw?.risk)}</span></div>
+                              <div className="flex justify-between"><span>Capture Ratio</span><span className="font-mono text-slate-700">{fmtRatio(s.raw?.capture)}</span></div>
                             </div>
                           </div>
                           <div>
                             <p className="font-bold text-slate-600 mb-2">Drawdown</p>
                             <div className="space-y-1 text-slate-500">
-                              <div className="flex justify-between"><span>Max DD</span><span className="font-mono text-red-600">{s.raw?.raw?.drawdown != null ? `${s.raw.raw.drawdown.toFixed(1)}%` : 'N/A'}</span></div>
+                              <div className="flex justify-between"><span>Max DD</span><span className="font-mono text-red-600">{s.raw?.drawdown != null ? `${s.raw.drawdown.toFixed(1)}%` : 'N/A'}</span></div>
                             </div>
                           </div>
                         </div>
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </tbody>
           </table>
