@@ -6,7 +6,7 @@ import {
 import {
   FUND_COLORS, BENCHMARK_COLOR, WINDOWS,
   fmt2, fmt1, fmtRatio, shortName, tickFormatter,
-  buildChartData, computeAllStats, rfPeriodPct,
+  buildChartData, computeAllStats, rfPeriodPct, computeFreefincalCaptureStats,
 } from '../../../shared/utils/chartUtils';
 
 const SECTIONS = [
@@ -294,6 +294,56 @@ const CaptureSection = ({ data }) => {
           </table>
         </Card>
       </div>
+
+      {/* ── Freefincal-style Capture Ratios ──────────────────────────────── */}
+      {allStats.some(({ fund }) => computeFreefincalCaptureStats(data?.monthly_returns, fund) !== null) && (
+        <div>
+          <SectionHeader>Freefincal-style Capture Ratios</SectionHeader>
+          <p className="text-xs text-editorial-navy/50 -mt-4 mb-3">
+            Monthly CAGR method · non-overlapping month-end NAV returns · window-independent
+          </p>
+          <Card>
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <Th>Fund</Th>
+                  <Th right>UCR</Th>
+                  <Th right>DCR</Th>
+                  <Th right>Ratio</Th>
+                  <Th right>Up Mo.</Th>
+                  <Th right>Dn Mo.</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {allStats.map(({ fund, color }) => {
+                  const ff = computeFreefincalCaptureStats(data?.monthly_returns, fund);
+                  return (
+                    <tr key={fund.scheme_code} className="hover:bg-editorial-cream/50">
+                      <Td>
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                          <span>{shortName(fund.scheme_name)}</span>
+                        </div>
+                      </Td>
+                      <Td right accent={ff && !isNaN(ff.ucr) ? colorCls(ff.ucr - 100) : 'text-editorial-navy/30'}>
+                        {ff && !isNaN(ff.ucr) ? ff.ucr.toFixed(1) : '—'}
+                      </Td>
+                      <Td right accent={ff && !isNaN(ff.dcr) ? colorCls(100 - ff.dcr) : 'text-editorial-navy/30'}>
+                        {ff && !isNaN(ff.dcr) ? ff.dcr.toFixed(1) : '—'}
+                      </Td>
+                      <Td right accent={ff && !isNaN(ff.captureRatio) ? colorCls(ff.captureRatio - 1) : 'text-editorial-navy/30'}>
+                        {ff && !isNaN(ff.captureRatio) ? `${ff.captureRatio.toFixed(2)}x` : '—'}
+                      </Td>
+                      <Td right accent="text-blue-600">{ff ? ff.upMonths : '—'}</Td>
+                      <Td right accent="text-rose-600">{ff ? ff.downMonths : '—'}</Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Card>
+        </div>
+      )}
 
       <div>
         <SectionHeader>Benchmark vs Fund Scatter</SectionHeader>

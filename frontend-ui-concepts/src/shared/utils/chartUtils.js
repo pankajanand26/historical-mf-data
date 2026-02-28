@@ -238,6 +238,79 @@ export function buildDrawdownSeries(chartData, fund) {
   });
 }
 
+/**
+ * Freefincal-style capture ratios using non-overlapping monthly returns.
+ *
+ * Methodology:
+ *   1. Align benchmark and fund on shared month-end dates.
+ *   2. Filter to UP months  (benchmark > 0) → compute CAGR product for fund & bench.
+ *   3. Filter to DOWN months (benchmark < 0) → compute CAGR product for fund & bench.
+ *   4. UCR  = upCAGR_fund  / upCAGR_bench  × 100
+ *   5. DCR  = downCAGR_fund / downCAGR_bench × 100
+ *   6. Capture Ratio = UCR / DCR
+ *
+ * CAGR = [∏(1 + rᵢ)]^(12/n) − 1  where n = count of filtered months.
+ *
+ * @param {Object|null} monthlyReturns - data.monthly_returns from the API response.
+ *   Shape: { benchmark: [{date, value}, ...], fund_<sc>: [{date, value}, ...] }
+ *   Values are decimal returns (e.g. 0.0312 = +3.12%).
+ * @param {Object} fund - fund object with scheme_code.
+ * @returns {Object|null} stats or null if data is unavailable.
+ */
+export function computeFreefincalCaptureStats(monthlyReturns, fund) {
+  if (!monthlyReturns) return null;
+  const key = `fund_${fund.scheme_code}`;
+
+  const benchPoints = monthlyReturns.benchmark ?? [];
+  const fundPoints  = monthlyReturns[key] ?? [];
+
+  if (!benchPoints.length || !fundPoints.length) return null;
+
+  // Build lookup map for fund monthly returns by date
+  const fundMap = new Map(fundPoints.map((p) => [p.date, p.value]));
+
+  const upFund = [], upBench = [], downFund = [], downBench = [];
+
+  for (const bp of benchPoints) {
+    const bv = bp.value;
+    const fv = fundMap.get(bp.date);
+    if (bv == null || fv == null) continue;
+    if (bv > 0) {
+      upBench.push(bv);
+      upFund.push(fv);
+    } else if (bv < 0) {
+      downBench.push(bv);
+      downFund.push(fv);
+    }
+    // months where benchmark == 0 excluded (per Freefincal)
+  }
+
+  // CAGR product formula: [∏(1 + rᵢ)]^(12/n) − 1
+  const cagrFromMonthly = (arr) => {
+    if (!arr.length) return NaN;
+    const product = arr.reduce((acc, r) => acc * (1 + r), 1);
+    return Math.pow(product, 12 / arr.length) - 1;
+  };
+
+  const upCAGR_bench  = cagrFromMonthly(upBench);
+  const upCAGR_fund   = cagrFromMonthly(upFund);
+  const downCAGR_bench = cagrFromMonthly(downBench);
+  const downCAGR_fund  = cagrFromMonthly(downFund);
+
+  const ucr = (!isNaN(upCAGR_fund) && !isNaN(upCAGR_bench) && upCAGR_bench !== 0)
+    ? (upCAGR_fund / upCAGR_bench) * 100 : NaN;
+  const dcr = (!isNaN(downCAGR_fund) && !isNaN(downCAGR_bench) && downCAGR_bench !== 0)
+    ? (downCAGR_fund / downCAGR_bench) * 100 : NaN;
+  const captureRatio = (!isNaN(ucr) && !isNaN(dcr) && dcr !== 0) ? ucr / dcr : NaN;
+
+  return {
+    ucr, dcr, captureRatio,
+    upMonths: upFund.length,
+    downMonths: downFund.length,
+    totalMonths: upFund.length + downFund.length,
+  };
+}
+
 export function buildAlphaData(chartData, fund) {
   const key = `fund_${fund.scheme_code}`;
   return chartData

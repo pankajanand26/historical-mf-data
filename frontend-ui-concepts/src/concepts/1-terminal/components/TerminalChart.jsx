@@ -6,7 +6,7 @@ import {
 import {
   FUND_COLORS, BENCHMARK_COLOR, WINDOWS,
   fmt2, fmt1, fmtRatio, shortName, tickFormatter,
-  buildChartData, computeAllStats, rfPeriodPct,
+  buildChartData, computeAllStats, rfPeriodPct, computeFreefincalCaptureStats,
 } from '../../../shared/utils/chartUtils';
 
 // ── Dark theme chart styles ────────────────────────────────────────────────────
@@ -311,8 +311,52 @@ const CaptureSection = ({ data }) => {
         </table>
       </div>
 
-      <SectionLabel>Benchmark vs Fund Returns (per fund)</SectionLabel>
-      <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+      {/* ── Freefincal-style Capture Ratios ───────────────────────── */}
+      {allStats.some(({ fund }) => computeFreefincalCaptureStats(data?.monthly_returns, fund) !== null) && (
+        <>
+          <SectionLabel>Freefincal-style Capture Ratios</SectionLabel>
+          <p className="text-[10px] text-terminal-muted -mt-3">
+            Monthly CAGR method · non-overlapping month-end NAV returns · window-independent
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <Th>Fund</Th>
+                  <Th right>UCR</Th>
+                  <Th right>DCR</Th>
+                  <Th right>Ratio</Th>
+                  <Th right>Up Mo.</Th>
+                  <Th right>Dn Mo.</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {allStats.map(({ fund, color }) => {
+                  const ff = computeFreefincalCaptureStats(data?.monthly_returns, fund);
+                  return (
+                    <tr key={fund.scheme_code} className="hover:bg-terminal-surface/60">
+                      <Td><FundDot color={color} name={fund.scheme_name} /></Td>
+                      <Td right accent={ff && !isNaN(ff.ucr) ? colorCls(ff.ucr - 100) : 'text-terminal-muted'}>
+                        {ff && !isNaN(ff.ucr) ? ff.ucr.toFixed(1) : '—'}
+                      </Td>
+                      <Td right accent={ff && !isNaN(ff.dcr) ? colorCls(100 - ff.dcr) : 'text-terminal-muted'}>
+                        {ff && !isNaN(ff.dcr) ? ff.dcr.toFixed(1) : '—'}
+                      </Td>
+                      <Td right accent={ff && !isNaN(ff.captureRatio) ? colorCls(ff.captureRatio - 1) : 'text-terminal-muted'}>
+                        {ff && !isNaN(ff.captureRatio) ? `${ff.captureRatio.toFixed(2)}x` : '—'}
+                      </Td>
+                      <Td right accent="text-blue-400">{ff ? ff.upMonths : '—'}</Td>
+                      <Td right accent="text-rose-400">{ff ? ff.downMonths : '—'}</Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      <SectionLabel>Benchmark vs Fund Returns (per fund)</SectionLabel>      <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
         {allStats.map(({ fund, color, scatterData }) => {
           const xs = scatterData.map((d) => d.x), ys = scatterData.map((d) => d.y);
           const allVals = [...xs, ...ys];
